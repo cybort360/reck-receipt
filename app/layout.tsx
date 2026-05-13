@@ -20,11 +20,13 @@ export const metadata: Metadata = {
     title: "RektReceipt",
     description: "Find out how much Solana has taken from you.",
     type: "website",
+    images: [{ url: '/og.png', width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "RektReceipt",
     description: "Find out how much Solana has taken from you.",
+    images: [{ url: '/og.png', width: 1200, height: 630 }],
   },
 };
 
