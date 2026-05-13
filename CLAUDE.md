@@ -1,4 +1,4 @@
-# Leakage Ledger
+# RektReceipt
 
 Tool that audits a Solana wallet's execution quality — surfacing slippage loss, priority fees, and Jito tips paid.
 

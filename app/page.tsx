@@ -20,11 +20,29 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+function getGrade(usd: number): { grade: string; color: string } {
+  if (usd < 1) return { grade: 'A', color: 'text-green-400' };
+  if (usd < 5) return { grade: 'B', color: 'text-green-400' };
+  if (usd < 20) return { grade: 'C', color: 'text-yellow-400' };
+  if (usd < 50) return { grade: 'D', color: 'text-red-400' };
+  return { grade: 'F', color: 'text-red-400' };
+}
+
 export default function Home() {
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AuditResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function handleShare() {
+    if (!result) return;
+    const grade = getGrade(result.totalLeakageUsd).grade;
+    const tweet = `I got a ${grade} on RektReceipt. I've leaked $${result.totalLeakageUsd.toFixed(2)} across ${result.transactionCount} swaps. Check yours: ${window.location.href} #RektReceipt`;
+    await navigator.clipboard.writeText(tweet);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,8 +74,8 @@ export default function Home() {
         {/* Left column — input */}
         <div className="flex-1 flex flex-col gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight font-mono">Leakage Ledger</h1>
-            <p className="text-[#666] text-sm mt-1">Solana execution quality audit</p>
+            <h1 className="text-2xl font-bold tracking-tight font-mono">RektReceipt</h1>
+            <p className="text-[#666] text-sm mt-1">Find out how much Solana has taken from you.</p>
           </div>
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <input
@@ -89,20 +107,34 @@ export default function Home() {
                 ))}
               </div>
             ) : result ? (
-              <div className="border border-dashed border-[#2a2a2a] rounded-lg bg-[#111] p-5">
-                <p className="text-[#14f195] text-xs tracking-widest font-mono mb-4">RECEIPT</p>
-                <div className="flex flex-col divide-y divide-[#1a1a1a]">
-                  <Row label="Wallet" value={truncateWallet(result.wallet)} />
-                  <Row label="Swaps analyzed" value={String(result.transactionCount)} />
-                  <Row label="Total fees" value={`${result.totalFeesSol.toFixed(4)} SOL`} />
-                  <Row label="Jito tips" value={`${result.totalJitoTips} txn${result.totalJitoTips !== 1 ? 's' : ''}`} />
+              <div className="flex flex-col gap-3">
+                <div className="border border-dashed border-[#2a2a2a] rounded-lg bg-[#111] p-5">
+                  <p className="text-[#14f195] text-xs tracking-widest font-mono mb-4">RECEIPT</p>
+                  <div className="flex flex-col divide-y divide-[#1a1a1a]">
+                    <Row label="Wallet" value={truncateWallet(result.wallet)} />
+                    <Row label="Swaps analyzed" value={String(result.transactionCount)} />
+                    <Row label="Total fees" value={`${result.totalFeesSol.toFixed(4)} SOL`} />
+                    <Row label="Jito tips" value={`${result.totalJitoTips} txns · ${result.totalJitoTipsSol.toFixed(4)} SOL`} />
+                    <div className="flex justify-between py-2 text-sm font-mono">
+                      <span className="text-[#666]">Execution grade</span>
+                      <span className={`font-bold ${getGrade(result.totalLeakageUsd).color}`}>
+                        {getGrade(result.totalLeakageUsd).grade}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-baseline mt-4 pt-4">
+                    <span className="text-[#666] text-xs tracking-widest font-mono">TOTAL REKT</span>
+                    <span className="text-red-400 font-bold text-lg">
+                      ${result.totalLeakageUsd.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-baseline mt-4 pt-4">
-                  <span className="text-[#666] text-xs tracking-widest font-mono">TOTAL LEAKAGE</span>
-                  <span className="text-red-400 font-bold text-lg">
-                    ${result.totalLeakageUsd.toFixed(2)}
-                  </span>
-                </div>
+                <button
+                  onClick={handleShare}
+                  className="w-full border border-[#2a2a2a] text-[#888] hover:text-white hover:border-[#444] py-2 rounded text-sm font-mono transition-colors"
+                >
+                  {copied ? 'Copied to clipboard!' : 'Share →'}
+                </button>
               </div>
             ) : null}
           </div>

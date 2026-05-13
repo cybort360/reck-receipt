@@ -27,6 +27,7 @@ export interface SwapTransaction {
   timestamp: number;
   fee: number;
   hasJitoTip: boolean;
+  jitoTipLamports: number;
 }
 
 export async function fetchSwapTransactions(walletAddress: string): Promise<SwapTransaction[]> {
@@ -40,10 +41,17 @@ export async function fetchSwapTransactions(walletAddress: string): Promise<Swap
 
   const txs: HeliusEnhancedTransaction[] = await res.json();
 
-  return txs.map((tx) => ({
-    signature: tx.signature,
-    timestamp: tx.timestamp,
-    fee: tx.fee,
-    hasJitoTip: tx.nativeTransfers.some((t) => JITO_TIP_ACCOUNTS.has(t.toUserAccount)),
-  }));
+  return txs.map((tx) => {
+    const transfers = tx.nativeTransfers ?? [];
+    const jitoTipLamports = transfers
+      .filter((t) => JITO_TIP_ACCOUNTS.has(t.toUserAccount))
+      .reduce((sum, t) => sum + t.amount, 0);
+    return {
+      signature: tx.signature,
+      timestamp: tx.timestamp,
+      fee: tx.fee,
+      hasJitoTip: jitoTipLamports > 0,
+      jitoTipLamports,
+    };
+  });
 }

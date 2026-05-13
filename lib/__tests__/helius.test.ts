@@ -7,6 +7,7 @@ const mockTxs = [
     fee: 5000,
     nativeTransfers: [
       { fromUserAccount: 'walletA', toUserAccount: '96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5', amount: 1000000 },
+      { fromUserAccount: 'walletA', toUserAccount: 'ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt', amount: 500000 },
     ],
   },
   {
@@ -43,12 +44,14 @@ describe('fetchSwapTransactions', () => {
       timestamp: 1715000000,
       fee: 5000,
       hasJitoTip: true,
+      jitoTipLamports: 1500000,
     });
     expect(result[1]).toEqual({
       signature: 'sig2def',
       timestamp: 1715001000,
       fee: 7500,
       hasJitoTip: false,
+      jitoTipLamports: 0,
     });
   });
 
