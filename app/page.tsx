@@ -1,14 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import type { LeakageSummary } from '@/lib/fees';
 
-interface AuditResult {
+interface AuditResult extends LeakageSummary {
   wallet: string;
-  totalFeesSol: number;
-  totalJitoTips: number;
-  totalLeakageSol: number;
-  totalLeakageUsd: number;
-  transactionCount: number;
 }
 
 function truncateWallet(address: string): string {
@@ -69,6 +65,7 @@ export default function Home() {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="wallet address..."
+              aria-label="Wallet address"
               className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 font-mono text-sm text-white placeholder-[#444] focus:outline-none focus:border-[#444]"
             />
             <button
@@ -98,7 +95,7 @@ export default function Home() {
                   <Row label="Wallet" value={truncateWallet(result.wallet)} />
                   <Row label="Swaps analyzed" value={String(result.transactionCount)} />
                   <Row label="Total fees" value={`${result.totalFeesSol.toFixed(4)} SOL`} />
-                  <Row label="Jito tips" value={String(result.totalJitoTips)} />
+                  <Row label="Jito tips" value={`${result.totalJitoTips} txn${result.totalJitoTips !== 1 ? 's' : ''}`} />
                 </div>
                 <div className="flex justify-between items-baseline mt-4 pt-4">
                   <span className="text-[#666] text-xs tracking-widest font-mono">TOTAL LEAKAGE</span>
