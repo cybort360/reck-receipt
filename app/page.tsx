@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { LeakageSummary } from '@/lib/fees';
 
 interface AuditResult extends LeakageSummary {
@@ -74,10 +75,13 @@ export default function Home() {
 
         {/* Left column — input */}
         <div className="flex-1 flex flex-col gap-4">
-          <div>
+          <div className="flex items-baseline justify-between">
             <h1 className="text-2xl font-bold tracking-tight font-mono">RektReceipt</h1>
-            <p className="text-[#666] text-sm mt-1">Find out how much Solana has taken from you.</p>
+            <Link href="/rektboard" className="text-[#444] text-xs font-mono hover:text-[#888] transition-colors">
+              Rektboard →
+            </Link>
           </div>
+          <p className="text-[#666] text-sm">Find out how much Solana has taken from you.</p>
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <input
               type="text"

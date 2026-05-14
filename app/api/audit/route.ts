@@ -24,7 +24,10 @@ export async function GET(req: NextRequest) {
   const summary = calculateLeakage(txs, solPriceUsd);
 
   const shareId = generateId();
-  await redis.set(`receipt:${shareId}`, JSON.stringify({ wallet, ...summary }), { ex: 604800 });
+  await Promise.all([
+    redis.set(`receipt:${shareId}`, JSON.stringify({ wallet, ...summary }), { ex: 604800 }),
+    redis.zadd('rektboard', { score: summary.totalLeakageUsd, member: shareId }),
+  ]);
 
   return NextResponse.json({ wallet, ...summary, shareId });
 }
