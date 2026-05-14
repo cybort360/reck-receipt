@@ -88,7 +88,7 @@ export default function Home() {
   async function handleShare() {
     if (!result) return;
     const grade = getGrade(result.totalLeakageUsd).grade;
-    const tweet = `I got a ${grade} on RektReceipt. I've leaked $${result.totalLeakageUsd.toFixed(2)} across ${result.transactionCount} swaps. Check yours: https://rektreceipt.vercel.app/share/${result.shareId} #RektReceipt`;
+    const tweet = `I got a ${grade} on RektReceipt. I've leaked $${result.totalLeakageUsd.toFixed(2)} across ${result.transactionCount} swaps. Check yours: https://rektreceipt.xyz/share/${result.shareId} #RektReceipt`;
     await navigator.clipboard.writeText(tweet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

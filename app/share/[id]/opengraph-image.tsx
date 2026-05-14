@@ -100,7 +100,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
 
         {/* Bottom bar */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <span style={{ color: '#333333', fontSize: '18px' }}>rektreceipt.vercel.app</span>
+          <span style={{ color: '#333333', fontSize: '18px' }}>rektreceipt.xyz</span>
         </div>
       </div>
     ),

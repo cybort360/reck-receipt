@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://rektreceipt.vercel.app'),
+  metadataBase: new URL('https://rektreceipt.xyz'),
   title: "RektReceipt",
   description: "Find out how much Solana has taken from you.",
   openGraph: {
