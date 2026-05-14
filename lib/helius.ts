@@ -84,12 +84,25 @@ export async function fetchSwapTransactions(walletAddress: string): Promise<Swap
   const apiKey = process.env.HELIUS_API_KEY;
   if (!apiKey) throw new Error('HELIUS_API_KEY is not set');
 
-  const url = `https://api.helius.xyz/v0/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100&type=SWAP`;
+  const MAX = 500;
+  const allTxs: HeliusEnhancedTransaction[] = [];
+  let before: string | null = null;
 
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Helius API error: ${res.status}`);
+  while (allTxs.length < MAX) {
+    const baseUrl = `https://api.helius.xyz/v0/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100&type=SWAP`;
+    const url = before ? `${baseUrl}&before=${before}` : baseUrl;
 
-  const txs: HeliusEnhancedTransaction[] = await res.json();
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Helius API error: ${res.status}`);
+
+    const page: HeliusEnhancedTransaction[] = await res.json();
+    allTxs.push(...page);
+
+    if (page.length < 100) break;
+    before = page[page.length - 1].signature;
+  }
+
+  const txs = allTxs.slice(0, MAX);
 
   return txs.map((tx) => {
     const nativeTransfers = tx.nativeTransfers ?? [];
