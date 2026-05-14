@@ -22,28 +22,28 @@ function maskWallet(address: string): string {
   return `${address.slice(0, 1)}••••••••••••`;
 }
 
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #1a1a1a' }}>
+      <span style={{ color: '#666666', fontSize: '22px' }}>{label}</span>
+      <span style={{ color: '#ffffff', fontSize: '22px' }}>{value}</span>
+    </div>
+  );
+}
+
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  let grade = '?';
-  let gradeColor = '#555555';
-  let totalLeakageUsd = 0;
-  let walletDisplay = '•••••••••••••';
-  let hasData = false;
-
+  let data: ReceiptData | null = null;
   try {
-    const data = await redis.get<ReceiptData>(`receipt:${id}`);
-    if (data) {
-      const gradeResult = getGrade(data.totalLeakageUsd);
-      grade = gradeResult.grade;
-      gradeColor = gradeResult.color;
-      totalLeakageUsd = data.totalLeakageUsd;
-      walletDisplay = maskWallet(data.wallet);
-      hasData = true;
-    }
+    data = await redis.get<ReceiptData>(`receipt:${id}`);
   } catch {
-    // fall through to placeholder values
+    // fall through to placeholder
   }
+
+  const { grade, color: gradeColor } = data ? getGrade(data.totalLeakageUsd) : { grade: '?', color: '#555555' };
+  const walletDisplay = data ? maskWallet(data.wallet) : '•••••••••••••';
+  const totalLeakageUsd = data?.totalLeakageUsd ?? 0;
 
   return new ImageResponse(
     (
@@ -54,107 +54,53 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          padding: '72px',
+          justifyContent: 'space-between',
+          padding: '56px 72px',
         }}
       >
-        {/* Top left — brand */}
-        <div style={{ display: 'flex' }}>
-          <span
-            style={{
-              fontSize: '48px',
-              fontWeight: 'bold',
-              color: 'white',
-              letterSpacing: '-1px',
-            }}
-          >
-            RektReceipt
-          </span>
+        {/* Top bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <span style={{ color: '#14f195', fontSize: '18px', letterSpacing: '4px' }}>RECEIPT</span>
+          <span style={{ color: '#333333', fontSize: '20px' }}>RektReceipt</span>
         </div>
 
-        {/* Center — grade + total */}
+        {/* Receipt card */}
         <div
           style={{
             display: 'flex',
+            flexDirection: 'column',
             flex: 1,
-            alignItems: 'center',
-            gap: '80px',
+            margin: '28px 0',
+            border: '1px dashed #2a2a2a',
+            borderRadius: '12px',
+            background: '#111111',
+            padding: '32px 40px',
           }}
         >
-          {/* Grade */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span
-              style={{
-                fontSize: '200px',
-                fontWeight: 'bold',
-                color: gradeColor,
-                lineHeight: 1,
-              }}
-            >
-              {grade}
-            </span>
-            <span
-              style={{
-                fontSize: '18px',
-                color: '#555555',
-                letterSpacing: '3px',
-                marginTop: '8px',
-                display: 'flex',
-              }}
-            >
-              EXECUTION GRADE
-            </span>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <Row label="Wallet" value={walletDisplay} />
+            <Row label="Swaps analyzed" value={data ? String(data.transactionCount) : '—'} />
+            <Row label="Total fees" value={data ? `${data.totalFeesSol.toFixed(4)} SOL` : '—'} />
+            <Row label="Jito tips" value={data ? `${data.totalJitoTips} txns · ${data.totalJitoTipsSol.toFixed(4)} SOL` : '—'} />
+            {/* Grade row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
+              <span style={{ color: '#666666', fontSize: '22px' }}>Execution grade</span>
+              <span style={{ color: gradeColor, fontSize: '22px', fontWeight: 'bold' }}>{grade}</span>
+            </div>
           </div>
-
-          {/* Divider */}
-          <div
-            style={{
-              display: 'flex',
-              width: '1px',
-              height: '220px',
-              background: '#2a2a2a',
-            }}
-          />
 
           {/* Total rekt */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <span
-              style={{
-                fontSize: '16px',
-                color: '#555555',
-                letterSpacing: '4px',
-                display: 'flex',
-              }}
-            >
-              TOTAL REKT
-            </span>
-            <span
-              style={{
-                fontSize: '96px',
-                fontWeight: 'bold',
-                color: '#f87171',
-                lineHeight: 1,
-                display: 'flex',
-              }}
-            >
-              {hasData ? `$${totalLeakageUsd.toFixed(2)}` : '$???'}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid #1a1a1a', paddingTop: '20px', marginTop: '8px' }}>
+            <span style={{ color: '#555555', fontSize: '16px', letterSpacing: '4px' }}>TOTAL REKT</span>
+            <span style={{ color: '#f87171', fontSize: '52px', fontWeight: 'bold', lineHeight: 1 }}>
+              {data ? `$${totalLeakageUsd.toFixed(2)}` : '$???'}
             </span>
           </div>
         </div>
 
-        {/* Bottom — masked wallet + domain */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-end',
-          }}
-        >
-          <span style={{ fontSize: '20px', color: '#333333', fontFamily: 'monospace' }}>
-            {walletDisplay}
-          </span>
-          <span style={{ fontSize: '20px', color: '#333333' }}>
-            rektreceipt.vercel.app
-          </span>
+        {/* Bottom bar */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <span style={{ color: '#333333', fontSize: '18px' }}>rektreceipt.vercel.app</span>
         </div>
       </div>
     ),
