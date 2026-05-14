@@ -22,10 +22,7 @@ export async function GET() {
   const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
   const weekKey = `rektboard:week:${week}`;
 
-  console.log('[stats] week:', week, '| weekKey:', weekKey);
-
   const results = await redis.zrange(weekKey, 0, 0, { rev: true, withScores: true });
-  console.log('[stats] raw zrange result:', results);
 
   if (!results || results.length === 0) {
     return NextResponse.json({ topLeakageUsd: 0 });
@@ -35,7 +32,6 @@ export async function GET() {
   const topLeakageUsd = results[1] as number;
 
   const shareId = await redis.get<string>(`wallet:shareId:${topWallet}`);
-  console.log('[stats] resolved shareId for wallet', topWallet, ':', shareId);
 
   if (!shareId) {
     return NextResponse.json({ topLeakageUsd: 0 });

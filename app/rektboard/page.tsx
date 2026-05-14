@@ -29,17 +29,14 @@ function maskWallet(address: string): string {
 
 async function getRektboard(): Promise<RektboardEntry[]> {
   const wallets = await redis.zrange('rektboard', 0, 19, { rev: true });
-  console.log('[rektboard] raw wallets from zrange:', wallets);
 
   const shareIds = await Promise.all(
     wallets.map((wallet) => redis.get<string>(`wallet:shareId:${wallet}`)),
   );
-  console.log('[rektboard] resolved shareIds:', shareIds);
 
   const receipts = await Promise.all(
     shareIds.map((shareId) => shareId ? redis.get<ReceiptData>(`receipt:${shareId}`) : null),
   );
-  console.log('[rektboard] receipts:', receipts);
 
   return wallets
     .map((wallet, i) => {

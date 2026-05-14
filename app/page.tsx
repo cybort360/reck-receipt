@@ -169,6 +169,12 @@ export default function Home() {
                 >
                   {copied ? 'Copied to clipboard!' : 'Share →'}
                 </button>
+                <Link
+                  href={`/history/${result.wallet}`}
+                  className="w-full text-center text-[#555] hover:text-[#888] text-xs font-mono transition-colors"
+                >
+                  View history →
+                </Link>
               </div>
             ) : null}
           </div>

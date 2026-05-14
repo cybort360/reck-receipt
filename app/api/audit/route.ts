@@ -10,6 +10,14 @@ function generateId(): string {
   return Array.from({ length: 6 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
 }
 
+function calculateGrade(usd: number): string {
+  if (usd < 1) return 'A';
+  if (usd < 5) return 'B';
+  if (usd < 20) return 'C';
+  if (usd < 50) return 'D';
+  return 'F';
+}
+
 export async function GET(req: NextRequest) {
   const wallet = req.nextUrl.searchParams.get('wallet');
   if (!wallet) {
@@ -26,9 +34,17 @@ export async function GET(req: NextRequest) {
   const shareId = generateId();
   const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
   const weekKey = `rektboard:week:${week}`;
-  console.log('[audit] week:', week, '| weekKey:', weekKey);
-  console.log('[audit] zadd rektboard', { score: summary.totalLeakageUsd, member: wallet });
-  console.log('[audit] zadd', weekKey, { score: summary.totalLeakageUsd, member: wallet });
+  const historyKey = `history:${wallet}`;
+  const historyEntry = JSON.stringify({
+    timestamp: Date.now(),
+    totalLeakageUsd: summary.totalLeakageUsd,
+    totalFeesSol: summary.totalFeesSol,
+    totalJitoTipsSol: summary.totalJitoTipsSol,
+    transactionCount: summary.transactionCount,
+    grade: calculateGrade(summary.totalLeakageUsd),
+    shareId,
+  });
+
   await Promise.all([
     redis.set(`receipt:${shareId}`, JSON.stringify({ wallet, ...summary }), { ex: 604800 }),
     redis.set(`wallet:shareId:${wallet}`, shareId),
@@ -36,6 +52,14 @@ export async function GET(req: NextRequest) {
     redis.zadd(weekKey, { score: summary.totalLeakageUsd, member: wallet }),
     redis.expire(weekKey, 1209600),
   ]);
+
+  try {
+    await redis.lpush(historyKey, historyEntry);
+    await redis.ltrim(historyKey, 0, 29);
+  } catch (err) {
+    // non-fatal: history write failure should not break the audit response
+    void err;
+  }
 
   return NextResponse.json({ wallet, ...summary, shareId });
 }
