@@ -46,6 +46,23 @@ export async function GET(req: NextRequest) {
 
   const tokenBreakdown = calculateTokenBreakdown(txs, tokenMetadata, solPricesByDate);
 
+  // Peer comparison — run concurrently with Redis writes below
+  const peerStatsPromise = (async () => {
+    const keys = await redis.keys('receipt:*');
+    const receipts = await Promise.all(keys.map((k) => redis.get<{ transactionCount: number; totalLeakageUsd: number }>(k)));
+    const peers = receipts.filter((r): r is { transactionCount: number; totalLeakageUsd: number } => {
+      if (!r) return false;
+      const lo = summary.transactionCount * 0.8;
+      const hi = summary.transactionCount * 1.2;
+      return r.transactionCount >= lo && r.transactionCount <= hi;
+    });
+    if (peers.length < 3) return { peerAvgLeakageUsd: null, peerPercentile: null };
+    const peerAvgLeakageUsd = peers.reduce((sum, p) => sum + p.totalLeakageUsd, 0) / peers.length;
+    const worse = peers.filter((p) => p.totalLeakageUsd <= summary.totalLeakageUsd).length;
+    const peerPercentile = Math.round((worse / peers.length) * 100);
+    return { peerAvgLeakageUsd, peerPercentile };
+  })();
+
   const shareId = generateId();
   const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
   const weekKey = `rektboard:week:${week}`;
@@ -76,5 +93,7 @@ export async function GET(req: NextRequest) {
     void err;
   }
 
-  return NextResponse.json({ wallet, ...summary, shareId, tokenBreakdown });
+  const { peerAvgLeakageUsd, peerPercentile } = await peerStatsPromise;
+
+  return NextResponse.json({ wallet, ...summary, shareId, tokenBreakdown, peerAvgLeakageUsd, peerPercentile });
 }

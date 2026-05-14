@@ -15,6 +15,8 @@ interface AuditResult extends LeakageSummary {
   wallet: string;
   shareId: string;
   tokenBreakdown: TokenBreakdownEntry[];
+  peerAvgLeakageUsd: number | null;
+  peerPercentile: number | null;
 }
 
 interface WeeklyStats {
@@ -175,6 +177,11 @@ export default function Home() {
                     </span>
                   </div>
                 </div>
+                {result.peerPercentile !== null && (
+                  <p className={`text-xs font-mono px-1 ${result.peerPercentile > 50 ? 'text-red-400' : 'text-green-400'}`}>
+                    You leaked more than {result.peerPercentile}% of wallets with similar trade volume.
+                  </p>
+                )}
                 {result.tokenBreakdown.length > 0 && (
                   <div className="border border-[#1a1a1a] rounded-lg bg-[#111] p-5">
                     <p className="text-[#14f195] text-xs tracking-widest font-mono mb-4">FEE BREAKDOWN BY TOKEN</p>
