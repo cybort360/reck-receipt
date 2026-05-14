@@ -19,25 +19,31 @@ function maskWallet(address: string): string {
 }
 
 export async function GET() {
-  const shareIds = await redis.zrange('rektboard', 0, 19, { rev: true });
+  try {
+    const shareIds = await redis.zrange('rektboard', 0, 19, { rev: true });
 
-  const receipts = await Promise.all(
-    shareIds.map((id) => redis.get<ReceiptData>(`receipt:${id}`)),
-  );
+    const receipts = await Promise.all(
+      shareIds.map((id) => redis.get<ReceiptData>(`receipt:${id}`)),
+    );
 
-  const entries = shareIds
-    .map((shareId, i) => {
-      const data = receipts[i];
-      if (!data) return null;
-      return {
-        shareId,
-        maskedWallet: maskWallet(data.wallet),
-        grade: getGrade(data.totalLeakageUsd),
-        totalLeakageUsd: data.totalLeakageUsd,
-        transactionCount: data.transactionCount,
-      };
-    })
-    .filter((entry) => entry !== null);
+    const entries = shareIds
+      .map((shareId, i) => {
+        const data = receipts[i];
+        if (!data) return null;
+        return {
+          shareId,
+          maskedWallet: maskWallet(data.wallet),
+          grade: getGrade(data.totalLeakageUsd),
+          totalLeakageUsd: data.totalLeakageUsd,
+          transactionCount: data.transactionCount,
+        };
+      })
+      .filter((entry) => entry !== null);
 
-  return NextResponse.json(entries);
+    return NextResponse.json(entries);
+  } catch (err) {
+    console.error('[rektboard] Redis error:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
