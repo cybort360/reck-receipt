@@ -255,6 +255,19 @@ export default function Home() {
                   >
                     {copied ? 'Copied to clipboard!' : 'Share →'}
                   </button>
+                  <a
+                    href="https://jup.ag/?referrer=DfQgaajq6LfcLHZuqRC36GoWbH9iqw8hGGnkCXcNbRiH&feeBps=50"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full text-center border border-violet-900 text-violet-400 hover:text-violet-300 hover:border-violet-700 py-2 rounded text-xs font-mono transition-colors block"
+                  >
+                    {(() => {
+                      const grade = getGrade(result.totalLeakageUsd).grade;
+                      if (grade === 'D' || grade === 'F') return 'Your execution is poor. Trade smarter on Jupiter.';
+                      if (result.totalJitoTips > 0) return 'You paid MEV bots. Use Jupiter MEV protection.';
+                      return 'Improve your execution on Jupiter.';
+                    })()}
+                  </a>
                   <Link
                     href={`/history/${result.wallet}`}
                     className="w-full text-center text-[#555] hover:text-[#888] text-xs font-mono transition-colors"
