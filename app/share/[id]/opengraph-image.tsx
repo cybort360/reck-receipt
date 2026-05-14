@@ -1,11 +1,14 @@
 import { ImageResponse } from 'next/og';
-import { fetchSwapTransactions } from '@/lib/helius';
-import { calculateLeakage } from '@/lib/fees';
-import { getSolPrice } from '@/lib/price';
+import { redis } from '@/lib/redis';
+import type { LeakageSummary } from '@/lib/fees';
 
 export const alt = 'RektReceipt';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
+
+interface ReceiptData extends LeakageSummary {
+  wallet: string;
+}
 
 function getGrade(usd: number): { grade: string; color: string } {
   if (usd < 1) return { grade: 'A', color: '#4ade80' };
@@ -15,29 +18,29 @@ function getGrade(usd: number): { grade: string; color: string } {
   return { grade: 'F', color: '#f87171' };
 }
 
-function truncateWallet(address: string): string {
+function maskWallet(address: string): string {
   return `${address.slice(0, 1)}••••••••••••`;
 }
 
-export default async function Image({ params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet } = await params;
+export default async function Image({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
   let grade = '?';
   let gradeColor = '#555555';
   let totalLeakageUsd = 0;
+  let walletDisplay = '•••••••••••••';
   let hasData = false;
 
   try {
-    const [txs, solPriceUsd] = await Promise.all([
-      fetchSwapTransactions(wallet),
-      getSolPrice(),
-    ]);
-    const summary = calculateLeakage(txs, solPriceUsd);
-    const gradeResult = getGrade(summary.totalLeakageUsd);
-    grade = gradeResult.grade;
-    gradeColor = gradeResult.color;
-    totalLeakageUsd = summary.totalLeakageUsd;
-    hasData = true;
+    const data = await redis.get<ReceiptData>(`receipt:${id}`);
+    if (data) {
+      const gradeResult = getGrade(data.totalLeakageUsd);
+      grade = gradeResult.grade;
+      gradeColor = gradeResult.color;
+      totalLeakageUsd = data.totalLeakageUsd;
+      walletDisplay = maskWallet(data.wallet);
+      hasData = true;
+    }
   } catch {
     // fall through to placeholder values
   }
@@ -78,13 +81,7 @@ export default async function Image({ params }: { params: Promise<{ wallet: stri
           }}
         >
           {/* Grade */}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-            }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <span
               style={{
                 fontSize: '200px',
@@ -119,13 +116,7 @@ export default async function Image({ params }: { params: Promise<{ wallet: stri
           />
 
           {/* Total rekt */}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-            }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <span
               style={{
                 fontSize: '16px',
@@ -150,7 +141,7 @@ export default async function Image({ params }: { params: Promise<{ wallet: stri
           </div>
         </div>
 
-        {/* Bottom — wallet + domain */}
+        {/* Bottom — masked wallet + domain */}
         <div
           style={{
             display: 'flex',
@@ -159,7 +150,7 @@ export default async function Image({ params }: { params: Promise<{ wallet: stri
           }}
         >
           <span style={{ fontSize: '20px', color: '#333333', fontFamily: 'monospace' }}>
-            {truncateWallet(wallet)}
+            {walletDisplay}
           </span>
           <span style={{ fontSize: '20px', color: '#333333' }}>
             rektreceipt.vercel.app

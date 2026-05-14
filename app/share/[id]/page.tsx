@@ -1,15 +1,14 @@
 import { cache } from 'react';
 import Link from 'next/link';
-import { fetchSwapTransactions } from '@/lib/helius';
-import { calculateLeakage, type LeakageSummary } from '@/lib/fees';
-import { getSolPrice } from '@/lib/price';
+import { redis } from '@/lib/redis';
+import type { LeakageSummary } from '@/lib/fees';
 
-const getAuditData = cache(async (wallet: string): Promise<LeakageSummary> => {
-  const [txs, solPriceUsd] = await Promise.all([
-    fetchSwapTransactions(wallet),
-    getSolPrice(),
-  ]);
-  return calculateLeakage(txs, solPriceUsd);
+interface ReceiptData extends LeakageSummary {
+  wallet: string;
+}
+
+const getReceipt = cache(async (id: string): Promise<ReceiptData | null> => {
+  return redis.get<ReceiptData>(`receipt:${id}`);
 });
 
 function getGrade(usd: number): { grade: string; color: string } {
@@ -20,7 +19,7 @@ function getGrade(usd: number): { grade: string; color: string } {
   return { grade: 'F', color: 'text-red-400' };
 }
 
-function truncateWallet(address: string): string {
+function maskWallet(address: string): string {
   return `${address.slice(0, 1)}••••••••••••`;
 }
 
@@ -33,34 +32,31 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet } = await params;
-  try {
-    const summary = await getAuditData(wallet);
-    const { grade } = getGrade(summary.totalLeakageUsd);
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const data = await getReceipt(id);
+  if (!data) {
     return {
-      title: 'My RektReceipt',
-      description: `I got grade ${grade} and leaked $${summary.totalLeakageUsd.toFixed(2)} — check yours.`,
-    };
-  } catch {
-    return {
-      title: 'My RektReceipt',
+      title: 'RektReceipt',
       description: 'Find out how much Solana has taken from you.',
     };
   }
+  const { grade } = getGrade(data.totalLeakageUsd);
+  return {
+    title: 'My RektReceipt',
+    description: `I got grade ${grade} and leaked $${data.totalLeakageUsd.toFixed(2)} — check yours.`,
+  };
 }
 
-export default async function SharePage({ params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet } = await params;
+export default async function SharePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const data = await getReceipt(id);
 
-  let summary: LeakageSummary;
-  try {
-    summary = await getAuditData(wallet);
-  } catch {
+  if (!data) {
     return (
       <main className="min-h-screen bg-[#0a0a0a] text-white px-6 py-16 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center">
-          <p className="text-[#666] text-sm font-mono">Failed to load receipt for this wallet.</p>
+          <p className="text-[#666] text-sm font-mono">Receipt not found or expired.</p>
           <Link href="/" className="text-[#14f195] text-sm font-mono hover:underline">
             Check yours →
           </Link>
@@ -69,7 +65,7 @@ export default async function SharePage({ params }: { params: Promise<{ wallet: 
     );
   }
 
-  const { grade, color } = getGrade(summary.totalLeakageUsd);
+  const { grade, color } = getGrade(data.totalLeakageUsd);
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white px-6 py-16 flex flex-col items-center justify-center gap-8">
@@ -82,12 +78,12 @@ export default async function SharePage({ params }: { params: Promise<{ wallet: 
         <div className="border border-dashed border-[#2a2a2a] rounded-lg bg-[#111] p-5">
           <p className="text-[#14f195] text-xs tracking-widest font-mono mb-4">RECEIPT</p>
           <div className="flex flex-col divide-y divide-[#1a1a1a]">
-            <Row label="Wallet" value={truncateWallet(wallet)} />
-            <Row label="Swaps analyzed" value={String(summary.transactionCount)} />
-            <Row label="Total fees" value={`${summary.totalFeesSol.toFixed(4)} SOL`} />
+            <Row label="Wallet" value={maskWallet(data.wallet)} />
+            <Row label="Swaps analyzed" value={String(data.transactionCount)} />
+            <Row label="Total fees" value={`${data.totalFeesSol.toFixed(4)} SOL`} />
             <Row
               label="Jito tips"
-              value={`${summary.totalJitoTips} txns · ${summary.totalJitoTipsSol.toFixed(4)} SOL`}
+              value={`${data.totalJitoTips} txns · ${data.totalJitoTipsSol.toFixed(4)} SOL`}
             />
             <div className="flex justify-between py-2 text-sm font-mono">
               <span className="text-[#666]">Execution grade</span>
@@ -97,7 +93,7 @@ export default async function SharePage({ params }: { params: Promise<{ wallet: 
           <div className="flex justify-between items-baseline mt-4 pt-4">
             <span className="text-[#666] text-xs tracking-widest font-mono">TOTAL REKT</span>
             <span className="text-red-400 font-bold text-lg">
-              ${summary.totalLeakageUsd.toFixed(2)}
+              ${data.totalLeakageUsd.toFixed(2)}
             </span>
           </div>
         </div>
