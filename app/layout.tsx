@@ -28,6 +28,9 @@ export const metadata: Metadata = {
     description: "Find out how much Solana has taken from you.",
     images: [{ url: '/og.png', width: 1200, height: 630 }],
   },
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
