@@ -22,12 +22,29 @@ interface HeliusTokenTransfer {
   mint: string;
 }
 
+interface HeliusTokenBalanceChange {
+  userAccount: string;
+  tokenAccount: string;
+  mint: string;
+  rawTokenAmount: {
+    tokenAmount: string;
+    decimals: number;
+  };
+}
+
+interface HeliusAccountData {
+  account: string;
+  nativeBalanceChange: number;
+  tokenBalanceChanges: HeliusTokenBalanceChange[];
+}
+
 interface HeliusEnhancedTransaction {
   signature: string;
   timestamp: number;
   fee: number;
   nativeTransfers: HeliusNativeTransfer[];
   tokenTransfers: HeliusTokenTransfer[];
+  accountData: HeliusAccountData[];
 }
 
 export interface TokenTransfer {
@@ -35,6 +52,20 @@ export interface TokenTransfer {
   toUserAccount: string;
   tokenAmount: number;
   mint: string;
+}
+
+export interface AccountData {
+  account: string;
+  nativeBalanceChange: number;
+  tokenBalanceChanges: Array<{
+    userAccount: string;
+    tokenAccount: string;
+    mint: string;
+    rawTokenAmount: {
+      tokenAmount: string;
+      decimals: number;
+    };
+  }>;
 }
 
 export interface SwapTransaction {
@@ -46,6 +77,7 @@ export interface SwapTransaction {
   slippagePct: number;
   likelySandwiched: boolean;
   tokenTransfers: TokenTransfer[];
+  accountData: AccountData[];
 }
 
 export async function fetchSwapTransactions(walletAddress: string): Promise<SwapTransaction[]> {
@@ -90,6 +122,7 @@ export async function fetchSwapTransactions(walletAddress: string): Promise<Swap
       slippagePct,
       likelySandwiched,
       tokenTransfers,
+      accountData: tx.accountData ?? [],
     };
   });
 }

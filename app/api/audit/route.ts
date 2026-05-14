@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchSwapTransactions } from '@/lib/helius';
 import { calculateLeakage, calculateTokenBreakdown } from '@/lib/fees';
+import { calculatePnl } from '@/lib/pnl';
 import { getTokenMetadata } from '@/lib/tokens';
 import { getSolPriceAtTimestamp } from '@/lib/price';
 import { redis } from '@/lib/redis';
@@ -28,9 +29,10 @@ export async function GET(req: NextRequest) {
   const txs = await fetchSwapTransactions(wallet);
 
   const mints = [...new Set(txs.flatMap((tx) => tx.tokenTransfers.map((t) => t.mint)).filter(Boolean))];
-  const [summary, tokenMetadata] = await Promise.all([
+  const [summary, tokenMetadata, pnl] = await Promise.all([
     calculateLeakage(txs),
     getTokenMetadata(mints),
+    calculatePnl(txs, wallet),
   ]);
 
   const solPricesByDate = new Map<string, number>();
@@ -95,5 +97,5 @@ export async function GET(req: NextRequest) {
 
   const { peerAvgLeakageUsd, peerPercentile } = await peerStatsPromise;
 
-  return NextResponse.json({ wallet, ...summary, shareId, tokenBreakdown, peerAvgLeakageUsd, peerPercentile });
+  return NextResponse.json({ wallet, ...summary, shareId, tokenBreakdown, peerAvgLeakageUsd, peerPercentile, pnl });
 }

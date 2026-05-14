@@ -6,9 +6,9 @@ jest.mock('../price', () => ({
 }));
 
 const txs: SwapTransaction[] = [
-  { signature: 'a', timestamp: 1, fee: 5000, hasJitoTip: true, jitoTipLamports: 2000000, slippagePct: 0.5, likelySandwiched: true, tokenTransfers: [] },
-  { signature: 'b', timestamp: 2, fee: 10000, hasJitoTip: false, jitoTipLamports: 0, slippagePct: 0, likelySandwiched: false, tokenTransfers: [] },
-  { signature: 'c', timestamp: 3, fee: 7500, hasJitoTip: true, jitoTipLamports: 1500000, slippagePct: 1.2, likelySandwiched: true, tokenTransfers: [] },
+  { signature: 'a', timestamp: 1, fee: 5000, hasJitoTip: true, jitoTipLamports: 2000000, slippagePct: 0.5, likelySandwiched: true, tokenTransfers: [], accountData: [] },
+  { signature: 'b', timestamp: 2, fee: 10000, hasJitoTip: false, jitoTipLamports: 0, slippagePct: 0, likelySandwiched: false, tokenTransfers: [], accountData: [] },
+  { signature: 'c', timestamp: 3, fee: 7500, hasJitoTip: true, jitoTipLamports: 1500000, slippagePct: 1.2, likelySandwiched: true, tokenTransfers: [], accountData: [] },
 ];
 
 describe('calculateLeakage', () => {
