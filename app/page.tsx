@@ -1,12 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import type { LeakageSummary } from '@/lib/fees';
 
 interface AuditResult extends LeakageSummary {
   wallet: string;
   shareId: string;
+}
+
+interface WeeklyStats {
+  topLeakageUsd: number;
+  topGrade?: string;
+  topMaskedWallet?: string;
+  shareId?: string;
 }
 
 function truncateWallet(address: string): string {
@@ -36,6 +43,14 @@ export default function Home() {
   const [result, setResult] = useState<AuditResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [stats, setStats] = useState<WeeklyStats | null>(null);
+
+  useEffect(() => {
+    fetch('/api/stats')
+      .then((r) => r.json())
+      .then((data: WeeklyStats) => setStats({ ...data, topLeakageUsd: parseFloat(String(data.topLeakageUsd)) }))
+      .catch(() => null);
+  }, []);
 
   async function handleShare() {
     if (!result) return;
@@ -82,6 +97,20 @@ export default function Home() {
             </Link>
           </div>
           <p className="text-[#666] text-sm">Find out how much Solana has taken from you.</p>
+          {stats && stats.topLeakageUsd > 0 && stats.shareId && (
+            <Link
+              href={`/share/${stats.shareId}`}
+              className="flex items-center gap-2 bg-[#111] border border-[#1a1a1a] rounded px-3 py-2 text-xs font-mono hover:border-[#2a2a2a] transition-colors"
+            >
+              <span className="text-[#555]">This week&apos;s most rekt wallet lost</span>
+              <span className="text-red-400 font-bold">${stats.topLeakageUsd.toFixed(2)}</span>
+              {stats.topGrade && (
+                <span className={`font-bold ml-auto ${getGrade(stats.topLeakageUsd).color}`}>
+                  {stats.topGrade}
+                </span>
+              )}
+            </Link>
+          )}
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <input
               type="text"

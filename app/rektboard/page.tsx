@@ -28,18 +28,28 @@ function maskWallet(address: string): string {
 }
 
 async function getRektboard(): Promise<RektboardEntry[]> {
-  const shareIds = await redis.zrange('rektboard', 0, 19, { rev: true });
-  const receipts = await Promise.all(
-    shareIds.map((id) => redis.get<ReceiptData>(`receipt:${id}`)),
+  const wallets = await redis.zrange('rektboard', 0, 19, { rev: true });
+  console.log('[rektboard] raw wallets from zrange:', wallets);
+
+  const shareIds = await Promise.all(
+    wallets.map((wallet) => redis.get<string>(`wallet:shareId:${wallet}`)),
   );
-  return shareIds
-    .map((shareId, i) => {
+  console.log('[rektboard] resolved shareIds:', shareIds);
+
+  const receipts = await Promise.all(
+    shareIds.map((shareId) => shareId ? redis.get<ReceiptData>(`receipt:${shareId}`) : null),
+  );
+  console.log('[rektboard] receipts:', receipts);
+
+  return wallets
+    .map((wallet, i) => {
+      const shareId = shareIds[i];
       const data = receipts[i];
-      if (!data) return null;
+      if (!shareId || !data) return null;
       const { grade, gradeColor } = getGrade(data.totalLeakageUsd);
       return {
         shareId,
-        maskedWallet: maskWallet(data.wallet),
+        maskedWallet: maskWallet(wallet),
         grade,
         gradeColor,
         totalLeakageUsd: data.totalLeakageUsd,

@@ -20,19 +20,24 @@ function maskWallet(address: string): string {
 
 export async function GET() {
   try {
-    const shareIds = await redis.zrange('rektboard', 0, 19, { rev: true });
+    const wallets = await redis.zrange('rektboard', 0, 19, { rev: true });
 
-    const receipts = await Promise.all(
-      shareIds.map((id) => redis.get<ReceiptData>(`receipt:${id}`)),
+    const shareIds = await Promise.all(
+      wallets.map((wallet) => redis.get<string>(`wallet:shareId:${wallet}`)),
     );
 
-    const entries = shareIds
-      .map((shareId, i) => {
+    const receipts = await Promise.all(
+      shareIds.map((shareId) => shareId ? redis.get<ReceiptData>(`receipt:${shareId}`) : null),
+    );
+
+    const entries = wallets
+      .map((wallet, i) => {
+        const shareId = shareIds[i];
         const data = receipts[i];
-        if (!data) return null;
+        if (!shareId || !data) return null;
         return {
           shareId,
-          maskedWallet: maskWallet(data.wallet),
+          maskedWallet: maskWallet(wallet),
           grade: getGrade(data.totalLeakageUsd),
           totalLeakageUsd: data.totalLeakageUsd,
           transactionCount: data.transactionCount,

@@ -24,9 +24,17 @@ export async function GET(req: NextRequest) {
   const summary = calculateLeakage(txs, solPriceUsd);
 
   const shareId = generateId();
+  const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  const weekKey = `rektboard:week:${week}`;
+  console.log('[audit] week:', week, '| weekKey:', weekKey);
+  console.log('[audit] zadd rektboard', { score: summary.totalLeakageUsd, member: wallet });
+  console.log('[audit] zadd', weekKey, { score: summary.totalLeakageUsd, member: wallet });
   await Promise.all([
     redis.set(`receipt:${shareId}`, JSON.stringify({ wallet, ...summary }), { ex: 604800 }),
-    redis.zadd('rektboard', { score: summary.totalLeakageUsd, member: shareId }),
+    redis.set(`wallet:shareId:${wallet}`, shareId),
+    redis.zadd('rektboard', { score: summary.totalLeakageUsd, member: wallet }),
+    redis.zadd(weekKey, { score: summary.totalLeakageUsd, member: wallet }),
+    redis.expire(weekKey, 1209600),
   ]);
 
   return NextResponse.json({ wallet, ...summary, shareId });
