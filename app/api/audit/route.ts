@@ -5,6 +5,8 @@ import { calculatePnl } from '@/lib/pnl';
 import { getTokenMetadata } from '@/lib/tokens';
 import { getSolPriceAtTimestamp } from '@/lib/price';
 import { redis } from '@/lib/redis';
+import { getTraderPersonality } from '@/lib/personality';
+import { calculateProjection } from '@/lib/projection';
 
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -24,6 +26,12 @@ export async function GET(req: NextRequest) {
   const wallet = req.nextUrl.searchParams.get('wallet');
   if (!wallet) {
     return NextResponse.json({ error: 'wallet address required' }, { status: 400 });
+  }
+
+  const cached = await redis.get(`cache:${wallet}`);
+  if (cached) {
+    const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
+    return NextResponse.json({ ...parsed, cached: true });
   }
 
   const txs = await fetchSwapTransactions(wallet);
@@ -97,5 +105,18 @@ export async function GET(req: NextRequest) {
 
   const { peerAvgLeakageUsd, peerPercentile } = await peerStatsPromise;
 
-  return NextResponse.json({ wallet, ...summary, shareId, tokenBreakdown, peerAvgLeakageUsd, peerPercentile, pnl });
+  const grade = calculateGrade(summary.totalLeakageUsd);
+  const personality = getTraderPersonality({
+    transactionCount: summary.transactionCount,
+    totalLeakageUsd: summary.totalLeakageUsd,
+    totalJitoTips: summary.totalJitoTips,
+    grade,
+  });
+  const projection = calculateProjection(txs, summary.totalLeakageUsd);
+
+  const result = { wallet, ...summary, shareId, tokenBreakdown, peerAvgLeakageUsd, peerPercentile, pnl, personality, projection };
+
+  await redis.set(`cache:${wallet}`, JSON.stringify(result), { ex: 14400 });
+
+  return NextResponse.json(result);
 }

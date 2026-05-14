@@ -17,6 +17,20 @@ interface PnlResult {
   totalNetValueUsd: number;
 }
 
+interface Personality {
+  title: string;
+  description: string;
+  emoji: string;
+}
+
+interface Projection {
+  dailyLeakageUsd: number;
+  weeklyLeakageUsd: number;
+  monthlyLeakageUsd: number;
+  yearlyLeakageUsd: number;
+  jupiterSavingsUsd: number;
+}
+
 interface AuditResult extends LeakageSummary {
   wallet: string;
   shareId: string;
@@ -24,6 +38,8 @@ interface AuditResult extends LeakageSummary {
   peerAvgLeakageUsd: number | null;
   peerPercentile: number | null;
   pnl: PnlResult;
+  personality: Personality;
+  projection: Projection;
 }
 
 interface WeeklyStats {
@@ -52,6 +68,12 @@ function getGrade(usd: number): { grade: string; color: string } {
   if (usd < 20) return { grade: 'C', color: 'text-yellow-400' };
   if (usd < 50) return { grade: 'D', color: 'text-red-400' };
   return { grade: 'F', color: 'text-red-400' };
+}
+
+function getGradeBorderColor(usd: number): string {
+  if (usd < 20) return 'border-green-400/30';
+  if (usd < 50) return 'border-yellow-400/30';
+  return 'border-red-400/30';
 }
 
 function Accordion({ label, children }: { label: string; children: React.ReactNode }) {
@@ -248,6 +270,68 @@ export default function Home() {
                     </Accordion>
                   )}
 
+                  {/* Degen report card accordion */}
+                  {result.personality && (
+                    <Accordion label="DEGEN REPORT CARD">
+                      <div className={`mt-2 rounded-lg border p-4 ${getGradeBorderColor(result.totalLeakageUsd)}`}>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-3xl">{result.personality.emoji}</span>
+                          <span className="text-base font-bold font-mono text-white">{result.personality.title}</span>
+                        </div>
+                        <p className="text-xs font-mono text-[#888] leading-relaxed">{result.personality.description}</p>
+                      </div>
+                    </Accordion>
+                  )}
+
+                  {/* Leakage projection accordion */}
+                  {result.projection && (
+                    <Accordion label="LEAKAGE PROJECTION">
+                      <table className="w-full text-xs font-mono mt-2">
+                        <thead>
+                          <tr className="text-[#444] tracking-widest">
+                            <th className="text-left pb-2 font-normal">PERIOD</th>
+                            <th className="text-right pb-2 font-normal">EST. LEAKAGE</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#1a1a1a]">
+                          <tr>
+                            <td className="py-2 text-[#666]">Daily</td>
+                            <td className="py-2 text-right text-red-400">${result.projection.dailyLeakageUsd.toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 text-[#666]">Weekly</td>
+                            <td className="py-2 text-right text-red-400">${result.projection.weeklyLeakageUsd.toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 text-[#666]">Monthly</td>
+                            <td className="py-2 text-right text-red-400">${result.projection.monthlyLeakageUsd.toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 text-[#666]">Yearly</td>
+                            <td className="py-2 text-right text-red-400">${result.projection.yearlyLeakageUsd.toFixed(2)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div className="mt-3 flex justify-between items-center rounded px-3 py-2 bg-[#0a1a0f] border border-green-900/50 text-xs font-mono">
+                        <span className="text-[#666]">Estimated Jupiter savings</span>
+                        <span className="text-green-400 font-bold">${result.projection.jupiterSavingsUsd.toFixed(2)}/year</span>
+                      </div>
+                      <a
+                        href="https://jup.ag/?referrer=DfQgaajq6LfcLHZuqRC36GoWbH9iqw8hGGnkCXcNbRiH&feeBps=50"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 w-full text-center border border-violet-900 text-violet-400 hover:text-violet-300 hover:border-violet-700 py-2 rounded text-xs font-mono transition-colors block"
+                      >
+                        {(() => {
+                          const grade = getGrade(result.totalLeakageUsd).grade;
+                          if (grade === 'D' || grade === 'F') return 'Your execution is poor. Trade smarter on Jupiter.';
+                          if (result.totalJitoTips > 0) return 'You paid MEV bots. Use Jupiter MEV protection.';
+                          return 'Improve your execution on Jupiter.';
+                        })()}
+                      </a>
+                    </Accordion>
+                  )}
+
                   {/* Actions */}
                   <button
                     onClick={handleShare}
@@ -255,19 +339,6 @@ export default function Home() {
                   >
                     {copied ? 'Copied to clipboard!' : 'Share →'}
                   </button>
-                  <a
-                    href="https://jup.ag/?referrer=DfQgaajq6LfcLHZuqRC36GoWbH9iqw8hGGnkCXcNbRiH&feeBps=50"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full text-center border border-violet-900 text-violet-400 hover:text-violet-300 hover:border-violet-700 py-2 rounded text-xs font-mono transition-colors block"
-                  >
-                    {(() => {
-                      const grade = getGrade(result.totalLeakageUsd).grade;
-                      if (grade === 'D' || grade === 'F') return 'Your execution is poor. Trade smarter on Jupiter.';
-                      if (result.totalJitoTips > 0) return 'You paid MEV bots. Use Jupiter MEV protection.';
-                      return 'Improve your execution on Jupiter.';
-                    })()}
-                  </a>
                   <Link
                     href={`/history/${result.wallet}`}
                     className="w-full text-center text-[#555] hover:text-[#888] text-xs font-mono transition-colors"
