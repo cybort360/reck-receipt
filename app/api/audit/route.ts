@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchSwapTransactions } from '@/lib/helius';
-import { calculateLeakage } from '@/lib/fees';
+import { calculateLeakage, calculateTokenBreakdown } from '@/lib/fees';
+import { getTokenMetadata } from '@/lib/tokens';
+import { getSolPriceAtTimestamp } from '@/lib/price';
 import { redis } from '@/lib/redis';
 
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -24,7 +26,25 @@ export async function GET(req: NextRequest) {
   }
 
   const txs = await fetchSwapTransactions(wallet);
-  const summary = await calculateLeakage(txs);
+
+  const mints = [...new Set(txs.flatMap((tx) => tx.tokenTransfers.map((t) => t.mint)).filter(Boolean))];
+  const [summary, tokenMetadata] = await Promise.all([
+    calculateLeakage(txs),
+    getTokenMetadata(mints),
+  ]);
+
+  const solPricesByDate = new Map<string, number>();
+  await Promise.all(
+    txs.map(async (tx) => {
+      const d = new Date(tx.timestamp * 1000);
+      const key = `${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${d.getUTCFullYear()}`;
+      if (!solPricesByDate.has(key)) {
+        solPricesByDate.set(key, await getSolPriceAtTimestamp(tx.timestamp * 1000));
+      }
+    }),
+  );
+
+  const tokenBreakdown = calculateTokenBreakdown(txs, tokenMetadata, solPricesByDate);
 
   const shareId = generateId();
   const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
@@ -56,5 +76,5 @@ export async function GET(req: NextRequest) {
     void err;
   }
 
-  return NextResponse.json({ wallet, ...summary, shareId });
+  return NextResponse.json({ wallet, ...summary, shareId, tokenBreakdown });
 }

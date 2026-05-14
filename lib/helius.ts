@@ -19,6 +19,7 @@ interface HeliusTokenTransfer {
   fromUserAccount: string;
   toUserAccount: string;
   tokenAmount: number;
+  mint: string;
 }
 
 interface HeliusEnhancedTransaction {
@@ -29,6 +30,13 @@ interface HeliusEnhancedTransaction {
   tokenTransfers: HeliusTokenTransfer[];
 }
 
+export interface TokenTransfer {
+  fromUserAccount: string;
+  toUserAccount: string;
+  tokenAmount: number;
+  mint: string;
+}
+
 export interface SwapTransaction {
   signature: string;
   timestamp: number;
@@ -37,6 +45,7 @@ export interface SwapTransaction {
   jitoTipLamports: number;
   slippagePct: number;
   likelySandwiched: boolean;
+  tokenTransfers: TokenTransfer[];
 }
 
 export async function fetchSwapTransactions(walletAddress: string): Promise<SwapTransaction[]> {
@@ -80,6 +89,7 @@ export async function fetchSwapTransactions(walletAddress: string): Promise<Swap
       jitoTipLamports,
       slippagePct,
       likelySandwiched,
+      tokenTransfers,
     };
   });
 }

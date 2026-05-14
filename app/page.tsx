@@ -4,9 +4,17 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import type { LeakageSummary } from '@/lib/fees';
 
+interface TokenBreakdownEntry {
+  symbol: string;
+  mint: string;
+  totalFeesUsd: number;
+  swapCount: number;
+}
+
 interface AuditResult extends LeakageSummary {
   wallet: string;
   shareId: string;
+  tokenBreakdown: TokenBreakdownEntry[];
 }
 
 interface WeeklyStats {
@@ -167,6 +175,29 @@ export default function Home() {
                     </span>
                   </div>
                 </div>
+                {result.tokenBreakdown.length > 0 && (
+                  <div className="border border-[#1a1a1a] rounded-lg bg-[#111] p-5">
+                    <p className="text-[#14f195] text-xs tracking-widest font-mono mb-4">FEE BREAKDOWN BY TOKEN</p>
+                    <table className="w-full text-xs font-mono">
+                      <thead>
+                        <tr className="text-[#444] tracking-widest">
+                          <th className="text-left pb-2 font-normal">TOKEN</th>
+                          <th className="text-right pb-2 font-normal">SWAPS</th>
+                          <th className="text-right pb-2 font-normal">FEES PAID</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#1a1a1a]">
+                        {result.tokenBreakdown.map((entry) => (
+                          <tr key={entry.mint}>
+                            <td className="py-2 text-white">{entry.symbol}</td>
+                            <td className="py-2 text-right text-[#666]">{entry.swapCount}</td>
+                            <td className="py-2 text-right text-red-400">${entry.totalFeesUsd.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
                 <button
                   onClick={handleShare}
                   className="w-full border border-[#2a2a2a] text-[#888] hover:text-white hover:border-[#444] py-2 rounded text-sm font-mono transition-colors"
