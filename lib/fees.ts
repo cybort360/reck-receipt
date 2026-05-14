@@ -7,6 +7,7 @@ export interface LeakageSummary {
   totalLeakageSol: number;
   totalLeakageUsd: number;
   transactionCount: number;
+  sandwichCount: number;
 }
 
 export function calculateLeakage(txs: SwapTransaction[], solPriceUsd: number): LeakageSummary {
@@ -16,6 +17,8 @@ export function calculateLeakage(txs: SwapTransaction[], solPriceUsd: number): L
   const totalLeakageSol = totalFeesSol + totalJitoTipsSol;
   const totalLeakageUsd = totalLeakageSol * solPriceUsd;
 
+  const sandwichCount = txs.filter((tx) => tx.likelySandwiched).length;
+
   return {
     totalFeesSol,
     totalJitoTips,
@@ -23,5 +26,6 @@ export function calculateLeakage(txs: SwapTransaction[], solPriceUsd: number): L
     totalLeakageSol,
     totalLeakageUsd,
     transactionCount: txs.length,
+    sandwichCount,
   };
 }

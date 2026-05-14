@@ -150,6 +150,10 @@ export default function Home() {
                     <Row label="Total fees" value={`${result.totalFeesSol.toFixed(4)} SOL`} />
                     <Row label="Jito tips" value={`${result.totalJitoTips} txns · ${result.totalJitoTipsSol.toFixed(4)} SOL`} />
                     <div className="flex justify-between py-2 text-sm font-mono">
+                      <span className="text-[#666]">Sandwich detection</span>
+                      <span className="text-[#444] italic">coming soon</span>
+                    </div>
+                    <div className="flex justify-between py-2 text-sm font-mono">
                       <span className="text-[#666]">Execution grade</span>
                       <span className={`font-bold ${getGrade(result.totalLeakageUsd).color}`}>
                         {getGrade(result.totalLeakageUsd).grade}

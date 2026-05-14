@@ -37,7 +37,7 @@ export async function GET() {
         if (!shareId || !data) return null;
         return {
           shareId,
-          maskedWallet: maskWallet(wallet),
+          maskedWallet: maskWallet(wallet as string),
           grade: getGrade(data.totalLeakageUsd),
           totalLeakageUsd: data.totalLeakageUsd,
           transactionCount: data.transactionCount,

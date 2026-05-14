@@ -15,11 +15,18 @@ interface HeliusNativeTransfer {
   amount: number;
 }
 
+interface HeliusTokenTransfer {
+  fromUserAccount: string;
+  toUserAccount: string;
+  tokenAmount: number;
+}
+
 interface HeliusEnhancedTransaction {
   signature: string;
   timestamp: number;
   fee: number;
   nativeTransfers: HeliusNativeTransfer[];
+  tokenTransfers: HeliusTokenTransfer[];
 }
 
 export interface SwapTransaction {
@@ -28,6 +35,8 @@ export interface SwapTransaction {
   fee: number;
   hasJitoTip: boolean;
   jitoTipLamports: number;
+  slippagePct: number;
+  likelySandwiched: boolean;
 }
 
 export async function fetchSwapTransactions(walletAddress: string): Promise<SwapTransaction[]> {
@@ -42,16 +51,35 @@ export async function fetchSwapTransactions(walletAddress: string): Promise<Swap
   const txs: HeliusEnhancedTransaction[] = await res.json();
 
   return txs.map((tx) => {
-    const transfers = tx.nativeTransfers ?? [];
-    const jitoTipLamports = transfers
+    const nativeTransfers = tx.nativeTransfers ?? [];
+    const tokenTransfers = tx.tokenTransfers ?? [];
+
+    const jitoTipLamports = nativeTransfers
       .filter((t) => JITO_TIP_ACCOUNTS.has(t.toUserAccount))
       .reduce((sum, t) => sum + t.amount, 0);
+    const hasJitoTip = jitoTipLamports > 0;
+
+    const outgoing = tokenTransfers
+      .filter((t) => t.fromUserAccount === walletAddress)
+      .reduce((max, t) => Math.max(max, t.tokenAmount), 0);
+    const incoming = tokenTransfers
+      .filter((t) => t.toUserAccount === walletAddress)
+      .reduce((max, t) => Math.max(max, t.tokenAmount), 0);
+    const slippagePct =
+      outgoing > 0 && incoming > 0
+        ? Math.max(0, ((outgoing - incoming) / outgoing) * 100)
+        : 0;
+
+    const likelySandwiched = hasJitoTip && jitoTipLamports > 100000;
+
     return {
       signature: tx.signature,
       timestamp: tx.timestamp,
       fee: tx.fee,
-      hasJitoTip: jitoTipLamports > 0,
+      hasJitoTip,
       jitoTipLamports,
+      slippagePct,
+      likelySandwiched,
     };
   });
 }

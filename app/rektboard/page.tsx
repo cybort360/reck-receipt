@@ -46,7 +46,7 @@ async function getRektboard(): Promise<RektboardEntry[]> {
       const { grade, gradeColor } = getGrade(data.totalLeakageUsd);
       return {
         shareId,
-        maskedWallet: maskWallet(wallet),
+        maskedWallet: maskWallet(wallet as string),
         grade,
         gradeColor,
         totalLeakageUsd: data.totalLeakageUsd,
