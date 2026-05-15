@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import SectionErrorBoundary from '@/components/SectionErrorBoundary';
 import type { LeakageSummary } from '@/lib/fees';
 
 interface TokenBreakdownEntry {
@@ -369,6 +370,7 @@ export default function Home() {
 
                   {/* Fee breakdown accordion */}
                   {result.tokenBreakdown.length > 0 && (
+                    <SectionErrorBoundary section="Fee Breakdown">
                     <Accordion label="FEE BREAKDOWN BY TOKEN">
                       <table className="w-full text-xs font-mono mt-1">
                         <thead>
@@ -389,10 +391,12 @@ export default function Home() {
                         </tbody>
                       </table>
                     </Accordion>
+                    </SectionErrorBoundary>
                   )}
 
                   {/* Dead bags accordion */}
                   {result.deadTokens && result.deadTokens.length > 0 && (
+                    <SectionErrorBoundary section="Dead Bags">
                     <Accordion label="DEAD BAGS">
                       <p className="text-xs font-mono text-[#6b7280] mt-1 mb-3">
                         {result.deadTokens.length} token{result.deadTokens.length !== 1 ? 's' : ''} worth less than $1 total —{' '}
@@ -417,6 +421,7 @@ export default function Home() {
                         </tbody>
                       </table>
                     </Accordion>
+                    </SectionErrorBoundary>
                   )}
 
                   {/* P&L accordion */}
@@ -435,6 +440,7 @@ export default function Home() {
 
                   {/* Overtrading accordion */}
                   {result.overtrading && result.overtrading.overtradedTokens.length > 0 && (
+                    <SectionErrorBoundary section="Overtrading">
                     <Accordion label="OVERTRADING">
                       <p className="text-xs font-mono text-[#6b7280] mt-1 mb-3">
                         {result.overtrading.overtradingSwapCount} swaps on{' '}
@@ -460,6 +466,7 @@ export default function Home() {
                         </tbody>
                       </table>
                     </Accordion>
+                    </SectionErrorBoundary>
                   )}
 
                   {/* Address poisoning accordion */}
@@ -488,6 +495,7 @@ export default function Home() {
 
                   {/* Degen report card accordion */}
                   {result.personality && (
+                    <SectionErrorBoundary section="Degen Report Card">
                     <Accordion label="DEGEN REPORT CARD">
                       <div className={`mt-2 rounded-lg border p-4 ${getGradeBorderColor(result.totalLeakageUsd)}`}>
                         <div className="flex items-center gap-3 mb-2">
@@ -497,10 +505,12 @@ export default function Home() {
                         <p className="text-xs font-mono text-[#9ca3af] leading-relaxed">{result.personality.description}</p>
                       </div>
                     </Accordion>
+                    </SectionErrorBoundary>
                   )}
 
                   {/* Leakage projection accordion */}
                   {result.projection && (
+                    <SectionErrorBoundary section="Leakage Projection">
                     <Accordion label="LEAKAGE PROJECTION">
                       <table className="w-full text-xs font-mono mt-2">
                         <thead>
@@ -546,6 +556,7 @@ export default function Home() {
                         })()}
                       </a>
                     </Accordion>
+                    </SectionErrorBoundary>
                   )}
 
                   {/* Actions */}

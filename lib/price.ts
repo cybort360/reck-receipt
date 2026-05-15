@@ -1,3 +1,5 @@
+import { redis } from './redis';
+
 const COINGECKO_URL =
   'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
 
@@ -14,8 +16,6 @@ export async function getSolPrice(): Promise<number> {
   }
 }
 
-const historicalPriceCache = new Map<string, number>();
-
 function formatDate(timestamp: number): string {
   const d = new Date(timestamp);
   const dd = String(d.getUTCDate()).padStart(2, '0');
@@ -26,9 +26,10 @@ function formatDate(timestamp: number): string {
 
 export async function getSolPriceAtTimestamp(timestamp: number): Promise<number> {
   const date = formatDate(timestamp);
+  const key = `rr:v1:price:${date}`;
 
-  const cached = historicalPriceCache.get(date);
-  if (cached !== undefined) return cached;
+  const cached = await redis.get<number>(key);
+  if (cached !== null) return cached;
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/solana/history?date=${date}&localization=false`;
@@ -36,7 +37,7 @@ export async function getSolPriceAtTimestamp(timestamp: number): Promise<number>
     if (!res.ok) return FALLBACK_PRICE;
     const data = await res.json();
     const price: number = data.market_data.current_price.usd;
-    historicalPriceCache.set(date, price);
+    await redis.set(key, price, { ex: 2592000 });
     return price;
   } catch {
     return FALLBACK_PRICE;
