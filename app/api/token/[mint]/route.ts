@@ -10,9 +10,9 @@ function getRating(rugScore: number): string {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { mint: string } },
+  { params }: { params: Promise<{ mint: string }> },
 ) {
-  const { mint } = params;
+  const { mint } = await params;
 
   const [traderCount, rugCount, symbol] = await Promise.all([
     redis.zcard(`tokentraders:${mint}`),
