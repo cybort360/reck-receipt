@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRefStats } from '@/lib/referral';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 
 export async function GET(req: NextRequest) {
   const wallet = req.nextUrl.searchParams.get('wallet');
@@ -8,7 +9,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'wallet address required' }, { status: 400 });
   }
 
-  const code = await redis.get<string>(`refcode:${wallet}`);
+  const code = await redis.get<string>(KEYS.refWallet(wallet));
   if (!code) {
     return NextResponse.json({ error: 'no referral code found for this wallet' }, { status: 404 });
   }

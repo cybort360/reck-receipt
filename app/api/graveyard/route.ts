@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 
 export async function GET() {
-  const results = await redis.zrange('graveyard', 0, 19, { rev: true, withScores: true });
+  const results = await redis.zrange(KEYS.lbGraveyard(), 0, 19, { rev: true, withScores: true });
 
   // zrange with withScores returns [member, score, member, score, ...]
   const entries: { mint: string; rugCount: number }[] = [];

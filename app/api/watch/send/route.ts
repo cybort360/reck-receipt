@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 import { generateWeeklySummary } from '@/lib/watch';
 
 interface WatchConfig {
@@ -33,8 +34,8 @@ export async function GET(req: NextRequest) {
 
   for (const wallet of wallets) {
     const [rawConfig, rawAudit] = await Promise.all([
-      redis.get(`watch:${wallet}`),
-      redis.get(`cache:${wallet}`),
+      redis.get(KEYS.userWatch(wallet)),
+      redis.get(KEYS.audit(wallet)),
     ]);
 
     if (!rawConfig) {

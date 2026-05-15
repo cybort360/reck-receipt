@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 
 interface TokenTransfer {
   fromUserAccount: string;
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'wallet address required' }, { status: 400 });
   }
 
-  const cached = await redis.get(`cache:${wallet}`);
+  const cached = await redis.get(KEYS.audit(wallet));
   if (!cached) {
     return NextResponse.json({ error: 'Please audit this wallet first' }, { status: 400 });
   }

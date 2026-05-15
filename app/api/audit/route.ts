@@ -12,6 +12,7 @@ import { getDeadTokens } from '@/lib/deadTokens';
 import { detectOvertrading } from '@/lib/overtrading';
 import { detectAddressPoisoning } from '@/lib/addressPoisoning';
 import { auditRatelimit } from '@/lib/ratelimit';
+import { KEYS } from '@/lib/redis/keys';
 
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
   let fromCache = false;
 
   if (!bust) {
-    const cached = await redis.get(`cache:${wallet}`);
+    const cached = await redis.get(KEYS.audit(wallet));
     if (cached) {
       fromCache = true;
       const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
@@ -63,7 +64,13 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const [proStatus] = await Promise.all([getProStatus(wallet)]);
+  // Start dead token lookup immediately — only needs wallet, runs in background
+  const deadTokensPromise = getDeadTokens(wallet).catch((err) => {
+    console.error('[DEAD TOKENS]', err);
+    return [] as Awaited<ReturnType<typeof getDeadTokens>>;
+  });
+
+  const proStatus = await getProStatus(wallet);
   const txLimit = proStatus.isPro ? 500 : 100;
 
   const txs = await fetchSwapTransactions(wallet, txLimit);
@@ -88,7 +95,7 @@ export async function GET(req: NextRequest) {
 
   const tokenBreakdown = calculateTokenBreakdown(txs, tokenMetadata, solPricesByDate);
 
-  // Peer comparison — run concurrently with Redis writes below
+  // Peer comparison — fire immediately, await later
   const peerStatsPromise = (async () => {
     const keys = await redis.keys('receipt:*');
     const receipts = await Promise.all(keys.map((k) => redis.get<{ transactionCount: number; totalLeakageUsd: number }>(k)));
@@ -105,38 +112,7 @@ export async function GET(req: NextRequest) {
     return { peerAvgLeakageUsd, peerPercentile };
   })();
 
-  const shareId = generateId();
-  const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
-  const weekKey = `rektboard:week:${week}`;
-  const historyKey = `history:${wallet}`;
-  const historyEntry = JSON.stringify({
-    timestamp: Date.now(),
-    totalLeakageUsd: summary.totalLeakageUsd,
-    totalFeesSol: summary.totalFeesSol,
-    totalJitoTipsSol: summary.totalJitoTipsSol,
-    transactionCount: summary.transactionCount,
-    grade: calculateGrade(summary.totalLeakageUsd),
-    shareId,
-  });
-
-  await Promise.all([
-    redis.set(`receipt:${shareId}`, JSON.stringify({ wallet, ...summary }), { ex: 604800 }),
-    redis.set(`wallet:shareId:${wallet}`, shareId),
-    redis.zadd('rektboard', { score: summary.totalLeakageUsd, member: wallet }),
-    redis.zadd(weekKey, { score: summary.totalLeakageUsd, member: wallet }),
-    redis.expire(weekKey, 1209600),
-  ]);
-
-  try {
-    await redis.lpush(historyKey, historyEntry);
-    await redis.ltrim(historyKey, 0, 29);
-  } catch (err) {
-    // non-fatal: history write failure should not break the audit response
-    void err;
-  }
-
-  const { peerAvgLeakageUsd, peerPercentile } = await peerStatsPromise;
-
+  // Sync derivations — no I/O, compute while async work is in flight
   const grade = calculateGrade(summary.totalLeakageUsd);
   const personality = getTraderPersonality({
     transactionCount: summary.transactionCount,
@@ -148,13 +124,26 @@ export async function GET(req: NextRequest) {
   const overtrading = detectOvertrading(tokenBreakdown);
   const addressPoisoning = detectAddressPoisoning(txs);
 
-  let deadTokens: Awaited<ReturnType<typeof getDeadTokens>> = [];
-  try {
-    deadTokens = await getDeadTokens(wallet);
-    console.log('[DEAD TOKENS]', deadTokens.length, 'found');
-  } catch (error) {
-    console.error('[DEAD TOKENS]', error);
-  }
+  // Collect all in-flight async results together
+  const [{ peerAvgLeakageUsd, peerPercentile }, deadTokens] = await Promise.all([
+    peerStatsPromise,
+    deadTokensPromise,
+  ]);
+  console.log('[DEAD TOKENS]', deadTokens.length, 'found');
+
+  const shareId = generateId();
+  const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  const weekKey = `rektboard:week:${week}`;
+  const historyKey = KEYS.history(wallet);
+  const historyEntry = JSON.stringify({
+    timestamp: Date.now(),
+    totalLeakageUsd: summary.totalLeakageUsd,
+    totalFeesSol: summary.totalFeesSol,
+    totalJitoTipsSol: summary.totalJitoTipsSol,
+    transactionCount: summary.transactionCount,
+    grade: calculateGrade(summary.totalLeakageUsd),
+    shareId,
+  });
 
   const cacheObject = {
     wallet,
@@ -182,28 +171,43 @@ export async function GET(req: NextRequest) {
   };
   console.log('caching:', JSON.stringify(cacheObject).slice(0, 200));
 
-  await redis.set(`cache:${wallet}`, JSON.stringify(cacheObject), { ex: 14400 });
-
-  if (!fromCache) {
-    try {
-      const indexOps: Promise<unknown>[] = [];
-
-      for (const token of tokenBreakdown) {
-        indexOps.push(redis.zincrby(`tokentraders:${token.mint}`, 1, wallet));
+  // All Redis writes in parallel — non-fatal ones are wrapped so they don't reject
+  await Promise.all([
+    redis.set(KEYS.audit(wallet), JSON.stringify(cacheObject), { ex: 14400 }),
+    redis.set(`receipt:${shareId}`, JSON.stringify({ wallet, ...summary }), { ex: 604800 }),
+    redis.set(KEYS.shareByWallet(wallet), shareId),
+    redis.zadd(KEYS.lbGlobal(), { score: summary.totalLeakageUsd, member: wallet }),
+    redis.zadd(weekKey, { score: summary.totalLeakageUsd, member: wallet }),
+    redis.expire(weekKey, 1209600),
+    // History writes must stay sequential (ltrim after lpush), wrapped as non-fatal
+    (async () => {
+      try {
+        await redis.lpush(historyKey, historyEntry);
+        await redis.ltrim(historyKey, 0, 29);
+      } catch (err) {
+        void err;
       }
-
-      for (const token of deadTokens) {
-        indexOps.push(redis.zincrby(`tokenrugs:${token.mint}`, 1, wallet));
-        indexOps.push(redis.zincrby('graveyard', 1, token.mint));
-        indexOps.push(redis.hset('tokensymbols', { [token.mint]: token.symbol }));
-      }
-
-      await Promise.all(indexOps);
-    } catch (err) {
-      // non-fatal: index failures should not break the audit response
-      void err;
-    }
-  }
+    })(),
+    // Token index writes — non-fatal, skipped for cached responses
+    !fromCache
+      ? (async () => {
+          try {
+            const indexOps: Promise<unknown>[] = [];
+            for (const token of tokenBreakdown) {
+              indexOps.push(redis.zincrby(KEYS.tokenTraders(token.mint), 1, wallet));
+            }
+            for (const token of deadTokens) {
+              indexOps.push(redis.zincrby(KEYS.tokenRugs(token.mint), 1, wallet));
+              indexOps.push(redis.zincrby(KEYS.lbGraveyard(), 1, token.mint));
+              indexOps.push(redis.hset('tokensymbols', { [token.mint]: token.symbol }));
+            }
+            await Promise.all(indexOps);
+          } catch (err) {
+            void err;
+          }
+        })()
+      : Promise.resolve(),
+  ]);
 
   return NextResponse.json({ ...cacheObject, peerAvgLeakageUsd, peerPercentile, pnl, isPro: proStatus.isPro });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 import type { LeakageSummary } from '@/lib/fees';
 
 interface ReceiptData extends LeakageSummary {
@@ -31,7 +32,7 @@ export async function GET() {
   const topWallet = results[0] as string;
   const topLeakageUsd = results[1] as number;
 
-  const shareId = await redis.get<string>(`wallet:shareId:${topWallet}`);
+  const shareId = await redis.get<string>(KEYS.shareByWallet(topWallet));
 
   if (!shareId) {
     return NextResponse.json({ topLeakageUsd: 0 });

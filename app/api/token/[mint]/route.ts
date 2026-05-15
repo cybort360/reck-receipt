@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 
 function getRating(rugScore: number): string {
   if (rugScore < 10) return 'SAFE';
@@ -15,8 +16,8 @@ export async function GET(
   const { mint } = await params;
 
   const [traderCount, rugCount, symbol] = await Promise.all([
-    redis.zcard(`tokentraders:${mint}`),
-    redis.zcard(`tokenrugs:${mint}`),
+    redis.zcard(KEYS.tokenTraders(mint)),
+    redis.zcard(KEYS.tokenRugs(mint)),
     redis.hget<string>('tokensymbols', mint),
   ]);
 

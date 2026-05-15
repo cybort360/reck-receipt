@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 
 interface CachedAudit {
   totalLeakageUsd: number;
@@ -22,7 +23,7 @@ function maskWallet(wallet: string): string {
 }
 
 export async function GET() {
-  const raw = await redis.zrange('rektboard', 0, 19, { withScores: true });
+  const raw = await redis.zrange(KEYS.lbGlobal(), 0, 19, { withScores: true });
 
   const entries: { wallet: string; score: number }[] = [];
   for (let i = 0; i < raw.length; i += 2) {
@@ -30,7 +31,7 @@ export async function GET() {
   }
 
   const caches = await Promise.all(
-    entries.map((e) => redis.get<CachedAudit>(`cache:${e.wallet}`)),
+    entries.map((e) => redis.get<CachedAudit>(KEYS.audit(e.wallet))),
   );
 
   const results = entries

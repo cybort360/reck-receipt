@@ -1,4 +1,5 @@
 import { redis } from './redis';
+import { KEYS } from './redis/keys';
 
 export function generateUniqueAmount(): number {
   const noise = Math.floor(Math.random() * 9999) + 1;
@@ -12,7 +13,7 @@ export async function createPaymentSession(wallet: string): Promise<{ amount: nu
   const expiresAt = createdAt + 1800 * 1000;
 
   await redis.set(
-    `payment:${amount}`,
+    KEYS.payment(String(amount)),
     JSON.stringify({ wallet, createdAt, status: 'pending' }),
     { ex: 1800 },
   );

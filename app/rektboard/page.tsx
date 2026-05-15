@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 import type { LeakageSummary } from '@/lib/fees';
 
 interface ReceiptData extends LeakageSummary {
@@ -28,10 +29,10 @@ function maskWallet(address: string): string {
 }
 
 async function getRektboard(): Promise<RektboardEntry[]> {
-  const wallets = await redis.zrange('rektboard', 0, 19, { rev: true });
+  const wallets = await redis.zrange(KEYS.lbGlobal(), 0, 19, { rev: true });
 
   const shareIds = await Promise.all(
-    wallets.map((wallet) => redis.get<string>(`wallet:shareId:${wallet}`)),
+    wallets.map((wallet) => redis.get<string>(KEYS.shareByWallet(wallet as string))),
   );
 
   const receipts = await Promise.all(

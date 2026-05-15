@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 
 interface CachedAudit {
   totalLeakageUsd: number;
@@ -15,10 +16,10 @@ function getGrade(totalLeakageUsd: number): string {
 }
 
 export async function GET() {
-  const wallets = (await redis.zrange('rektboard', 0, 9)) as string[];
+  const wallets = (await redis.zrange(KEYS.auditedWallets(), 0, -1)) as string[];
 
   const caches = await Promise.all(
-    wallets.map((w) => redis.get<CachedAudit>(`cache:${w}`)),
+    wallets.map((w) => redis.get<CachedAudit>(KEYS.audit(w))),
   );
 
   const alphaWallets = caches.filter(

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 
 export async function POST(req: NextRequest) {
   const { wallet } = await req.json();
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest) {
   }
 
   await Promise.all([
-    redis.del(`watch:${wallet}`),
+    redis.del(KEYS.userWatch(wallet)),
     redis.srem('watched-wallets', wallet),
   ]);
 

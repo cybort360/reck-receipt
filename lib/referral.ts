@@ -1,4 +1,5 @@
 import { redis } from './redis';
+import { KEYS } from './redis/keys';
 
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -15,22 +16,22 @@ function generateCode(): string {
 }
 
 export async function generateRefCode(wallet: string): Promise<string> {
-  const existing = await redis.get<string>(`refcode:${wallet}`);
+  const existing = await redis.get<string>(KEYS.refWallet(wallet));
   if (existing) return existing;
 
   const code = generateCode();
   const record: RefRecord = { wallet, createdAt: Date.now(), clicks: 0, conversions: 0, earningsUsd: 0 };
 
   await Promise.all([
-    redis.set(`ref:${code}`, JSON.stringify(record)),
-    redis.set(`refcode:${wallet}`, code),
+    redis.set(KEYS.refCode(code), JSON.stringify(record)),
+    redis.set(KEYS.refWallet(wallet), code),
   ]);
 
   return code;
 }
 
 export async function getRefStats(code: string): Promise<RefRecord | null> {
-  const raw = await redis.get(`ref:${code}`);
+  const raw = await redis.get(KEYS.refCode(code));
   if (!raw) return null;
   return typeof raw === 'string' ? JSON.parse(raw) : (raw as RefRecord);
 }
@@ -39,7 +40,7 @@ export async function trackClick(code: string): Promise<void> {
   const record = await getRefStats(code);
   if (!record) return;
   record.clicks += 1;
-  await redis.set(`ref:${code}`, JSON.stringify(record));
+  await redis.set(KEYS.refCode(code), JSON.stringify(record));
 }
 
 export async function trackConversion(code: string, amountUsd: number): Promise<void> {
@@ -47,5 +48,5 @@ export async function trackConversion(code: string, amountUsd: number): Promise<
   if (!record) return;
   record.conversions += 1;
   record.earningsUsd += amountUsd * 0.5;
-  await redis.set(`ref:${code}`, JSON.stringify(record));
+  await redis.set(KEYS.refCode(code), JSON.stringify(record));
 }

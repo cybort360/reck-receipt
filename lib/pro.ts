@@ -1,4 +1,5 @@
 import { redis } from './redis';
+import { KEYS } from './redis/keys';
 
 interface ProStatus {
   isPro: boolean;
@@ -12,17 +13,17 @@ interface ProRecord {
 }
 
 export async function getProStatus(wallet: string): Promise<ProStatus> {
-  const record = await redis.get<ProRecord>(`pro:${wallet}`);
+  const record = await redis.get<ProRecord>(KEYS.userPro(wallet));
   if (!record) return { isPro: false };
   return { isPro: true, paymentRef: record.paymentRef, source: record.source };
 }
 
 export async function grantPro(wallet: string, paymentRef: string, source: string): Promise<void> {
-  await redis.set(`pro:${wallet}`, JSON.stringify({ paymentRef, source }));
+  await redis.set(KEYS.userPro(wallet), JSON.stringify({ paymentRef, source }));
 }
 
 export async function revokePro(wallet: string): Promise<void> {
-  await redis.del(`pro:${wallet}`);
+  await redis.del(KEYS.userPro(wallet));
 }
 
 export async function grantProDev(wallet: string): Promise<void> {

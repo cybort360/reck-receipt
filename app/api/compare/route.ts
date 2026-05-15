@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 
 interface CachedAudit {
   totalLeakageUsd: number;
@@ -42,8 +43,8 @@ export async function GET(req: NextRequest) {
   }
 
   const [cache1, cache2] = await Promise.all([
-    redis.get<CachedAudit>(`cache:${wallet1}`),
-    redis.get<CachedAudit>(`cache:${wallet2}`),
+    redis.get<CachedAudit>(KEYS.audit(wallet1)),
+    redis.get<CachedAudit>(KEYS.audit(wallet2)),
   ]);
 
   if (!cache1 && !cache2) {

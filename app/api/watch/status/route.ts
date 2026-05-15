@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 
 function maskEmail(email: string): string {
   const atIdx = email.indexOf('@');
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'wallet address required' }, { status: 400 });
   }
 
-  const raw = await redis.get(`watch:${wallet}`);
+  const raw = await redis.get(KEYS.userWatch(wallet));
   if (!raw) {
     return NextResponse.json({ watching: false });
   }

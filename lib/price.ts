@@ -1,4 +1,5 @@
 import { redis } from './redis';
+import { KEYS } from './redis/keys';
 
 const COINGECKO_URL =
   'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
@@ -26,7 +27,7 @@ function formatDate(timestamp: number): string {
 
 export async function getSolPriceAtTimestamp(timestamp: number): Promise<number> {
   const date = formatDate(timestamp);
-  const key = `rr:v1:price:${date}`;
+  const key = KEYS.price(date);
 
   const cached = await redis.get<number>(key);
   if (cached !== null) return cached;

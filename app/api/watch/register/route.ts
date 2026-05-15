@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 import { getProStatus } from '@/lib/pro';
 
 export async function POST(req: NextRequest) {
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
   const config = { wallet, email: email ?? null, telegramChatId: telegramChatId ?? null, registeredAt: Date.now() };
 
   await Promise.all([
-    redis.set(`watch:${wallet}`, JSON.stringify(config)),
+    redis.set(KEYS.userWatch(wallet), JSON.stringify(config)),
     redis.sadd('watched-wallets', wallet),
   ]);
 

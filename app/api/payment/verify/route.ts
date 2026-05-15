@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { KEYS } from '@/lib/redis/keys';
 import { grantPro } from '@/lib/pro';
 
 interface PaymentRecord {
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   }
 
   const amount = parseFloat(amountParam);
-  const raw = await redis.get(`payment:${amount}`);
+  const raw = await redis.get(KEYS.payment(String(amount)));
   if (!raw) {
     return NextResponse.json({ status: 'expired' });
   }
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
       ) {
         await grantPro(record.wallet, tx.signature, 'crypto_usdc');
         await redis.set(
-          `payment:${amount}`,
+          KEYS.payment(String(amount)),
           JSON.stringify({ ...record, status: 'confirmed' }),
           { ex: 1800 },
         );
