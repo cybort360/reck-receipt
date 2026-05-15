@@ -16,11 +16,11 @@ interface RektboardEntry {
 }
 
 function getGrade(usd: number): { grade: string; gradeColor: string } {
-  if (usd < 1) return { grade: 'A', gradeColor: 'text-green-400' };
-  if (usd < 5) return { grade: 'B', gradeColor: 'text-green-400' };
+  if (usd < 1) return { grade: 'A', gradeColor: 'text-[#00ff88]' };
+  if (usd < 5) return { grade: 'B', gradeColor: 'text-[#00ff88]' };
   if (usd < 20) return { grade: 'C', gradeColor: 'text-yellow-400' };
-  if (usd < 50) return { grade: 'D', gradeColor: 'text-red-400' };
-  return { grade: 'F', gradeColor: 'text-red-400' };
+  if (usd < 50) return { grade: 'D', gradeColor: 'text-[#ff4444]' };
+  return { grade: 'F', gradeColor: 'text-[#ff4444]' };
 }
 
 function maskWallet(address: string): string {
@@ -70,21 +70,21 @@ export default async function RektboardPage() {
 
         <div className="flex items-baseline justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight font-mono">Rektboard</h1>
-            <p className="text-[#666] text-sm mt-1">Most rekt wallets in the last 7 days.</p>
+            <h1 className="text-2xl font-bold tracking-tight font-mono text-[#00ff88]">Rektboard</h1>
+            <p className="text-[#6b7280] text-sm mt-1 font-mono">Most rekt wallets in the last 7 days.</p>
           </div>
-          <Link href="/" className="text-[#14f195] text-sm font-mono hover:underline">
+          <Link href="/" className="nav-link text-sm font-mono">
             ← Audit yours
           </Link>
         </div>
 
         {entries.length === 0 ? (
-          <p className="text-[#444] text-sm font-mono">No audits yet. Be the first.</p>
+          <p className="text-[#6b7280] text-sm font-mono">No audits yet. Be the first.</p>
         ) : (
-          <div className="border border-[#1a1a1a] rounded-lg overflow-hidden">
+          <div className="border border-[#1f2937] rounded-lg overflow-hidden bg-[#111111]">
             <table className="w-full text-sm font-mono">
               <thead>
-                <tr className="border-b border-[#1a1a1a] text-[#444] text-xs tracking-widest">
+                <tr className="border-b border-[#1f2937] text-[#6b7280] text-xs tracking-widest">
                   <th className="text-left px-4 py-3 font-normal">RANK</th>
                   <th className="text-left px-4 py-3 font-normal">WALLET</th>
                   <th className="text-left px-4 py-3 font-normal">GRADE</th>
@@ -96,13 +96,13 @@ export default async function RektboardPage() {
                 {entries.map((entry, i) => (
                   <tr
                     key={entry.shareId}
-                    className="border-b border-[#111] hover:bg-[#111] transition-colors"
+                    className="border-b border-[#1f2937] hover:border-[#2d3748] hover:bg-[#161f2e] transition-colors"
                   >
-                    <td className="px-4 py-3 text-[#444]">{i + 1}</td>
+                    <td className="px-4 py-3 text-[#6b7280]">{i + 1}</td>
                     <td className="px-4 py-3">
                       <Link
                         href={`/share/${entry.shareId}`}
-                        className="text-[#888] hover:text-white transition-colors"
+                        className="nav-link text-[#9ca3af]"
                       >
                         {entry.maskedWallet}
                       </Link>
@@ -110,10 +110,10 @@ export default async function RektboardPage() {
                     <td className={`px-4 py-3 font-bold ${entry.gradeColor}`}>
                       {entry.grade}
                     </td>
-                    <td className="px-4 py-3 text-right text-red-400 font-bold">
+                    <td className="px-4 py-3 text-right text-[#ff4444] font-bold">
                       ${entry.totalLeakageUsd.toFixed(2)}
                     </td>
-                    <td className="px-4 py-3 text-right text-[#666]">
+                    <td className="px-4 py-3 text-right text-[#6b7280]">
                       {entry.transactionCount}
                     </td>
                   </tr>

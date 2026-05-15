@@ -44,7 +44,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ wallet
             <h1 className="text-2xl font-bold tracking-tight font-mono">Audit History</h1>
             <p className="text-[#555] text-xs font-mono mt-1 break-all">{wallet.slice(0, 1)}••••••••••••</p>
           </div>
-          <Link href="/" className="text-[#14f195] text-sm font-mono hover:underline">
+          <Link href="/" className="nav-link text-[#14f195] text-sm font-mono">
             ← Audit
           </Link>
         </div>
@@ -88,7 +88,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ wallet
                       <td className="px-4 py-3 text-right text-[#888]">{entry.totalFeesSol.toFixed(4)}</td>
                       <td className="px-4 py-3 text-right text-[#888]">{entry.totalJitoTipsSol.toFixed(4)}</td>
                       <td className="px-4 py-3 text-right text-red-400 font-bold">
-                        <Link href={`/share/${entry.shareId}`} className="hover:underline">
+                        <Link href={`/share/${entry.shareId}`} className="nav-link">
                           ${entry.totalLeakageUsd.toFixed(2)}
                         </Link>
                       </td>

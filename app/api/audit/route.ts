@@ -7,6 +7,10 @@ import { getSolPriceAtTimestamp } from '@/lib/price';
 import { redis } from '@/lib/redis';
 import { getTraderPersonality } from '@/lib/personality';
 import { calculateProjection } from '@/lib/projection';
+import { getProStatus } from '@/lib/pro';
+import { getDeadTokens } from '@/lib/deadTokens';
+import { detectOvertrading } from '@/lib/overtrading';
+import { detectAddressPoisoning } from '@/lib/addressPoisoning';
 
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -28,13 +32,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'wallet address required' }, { status: 400 });
   }
 
-  const cached = await redis.get(`cache:${wallet}`);
-  if (cached) {
-    const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
-    return NextResponse.json({ ...parsed, cached: true });
+  const bust = req.nextUrl.searchParams.get('bust');
+  let fromCache = false;
+
+  if (!bust) {
+    const cached = await redis.get(`cache:${wallet}`);
+    if (cached) {
+      fromCache = true;
+      const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
+      return NextResponse.json({ ...parsed, cached: true });
+    }
   }
 
-  const txs = await fetchSwapTransactions(wallet);
+  const [proStatus] = await Promise.all([getProStatus(wallet)]);
+  const txLimit = proStatus.isPro ? 500 : 100;
+
+  const txs = await fetchSwapTransactions(wallet, txLimit);
 
   const mints = [...new Set(txs.flatMap((tx) => tx.tokenTransfers.map((t) => t.mint)).filter(Boolean))];
   const [summary, tokenMetadata, pnl] = await Promise.all([
@@ -113,10 +126,65 @@ export async function GET(req: NextRequest) {
     grade,
   });
   const projection = calculateProjection(txs, summary.totalLeakageUsd);
+  const overtrading = detectOvertrading(tokenBreakdown);
+  const addressPoisoning = detectAddressPoisoning(txs);
 
-  const result = { wallet, ...summary, shareId, tokenBreakdown, peerAvgLeakageUsd, peerPercentile, pnl, personality, projection };
+  let deadTokens: Awaited<ReturnType<typeof getDeadTokens>> = [];
+  try {
+    deadTokens = await getDeadTokens(wallet);
+    console.log('[DEAD TOKENS]', deadTokens.length, 'found');
+  } catch (error) {
+    console.error('[DEAD TOKENS]', error);
+  }
 
-  await redis.set(`cache:${wallet}`, JSON.stringify(result), { ex: 14400 });
+  const cacheObject = {
+    wallet,
+    totalFeesSol: summary.totalFeesSol,
+    totalJitoTips: summary.totalJitoTips,
+    totalJitoTipsSol: summary.totalJitoTipsSol,
+    totalLeakageSol: summary.totalLeakageSol,
+    totalLeakageUsd: summary.totalLeakageUsd,
+    transactionCount: summary.transactionCount,
+    sandwichCount: summary.sandwichCount,
+    shareId,
+    tokenBreakdown,
+    personality,
+    projection,
+    overtrading,
+    addressPoisoning,
+    deadTokens,
+    txs: txs.map((tx) => ({
+      signature: tx.signature,
+      timestamp: tx.timestamp,
+      fee: tx.fee,
+      jitoTipLamports: tx.jitoTipLamports,
+      hasJitoTip: tx.hasJitoTip,
+    })),
+  };
+  console.log('caching:', JSON.stringify(cacheObject).slice(0, 200));
 
-  return NextResponse.json(result);
+  await redis.set(`cache:${wallet}`, JSON.stringify(cacheObject), { ex: 14400 });
+
+  if (!fromCache) {
+    try {
+      const indexOps: Promise<unknown>[] = [];
+
+      for (const token of tokenBreakdown) {
+        indexOps.push(redis.zincrby(`tokentraders:${token.mint}`, 1, wallet));
+      }
+
+      for (const token of deadTokens) {
+        indexOps.push(redis.zincrby(`tokenrugs:${token.mint}`, 1, wallet));
+        indexOps.push(redis.zincrby('graveyard', 1, token.mint));
+        indexOps.push(redis.hset('tokensymbols', { [token.mint]: token.symbol }));
+      }
+
+      await Promise.all(indexOps);
+    } catch (err) {
+      // non-fatal: index failures should not break the audit response
+      void err;
+    }
+  }
+
+  return NextResponse.json({ ...cacheObject, peerAvgLeakageUsd, peerPercentile, pnl, isPro: proStatus.isPro });
 }

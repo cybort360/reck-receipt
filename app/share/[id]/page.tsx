@@ -57,8 +57,8 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
       <main className="min-h-screen bg-[#0a0a0a] text-white px-6 py-16 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center">
           <p className="text-[#666] text-sm font-mono">Receipt not found or expired.</p>
-          <Link href="/" className="text-[#14f195] text-sm font-mono hover:underline">
-            Check yours →
+          <Link href="/" className="nav-link text-sm font-mono">
+            Check yours
           </Link>
         </div>
       </main>

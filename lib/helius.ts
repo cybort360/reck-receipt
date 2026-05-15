@@ -80,11 +80,11 @@ export interface SwapTransaction {
   accountData: AccountData[];
 }
 
-export async function fetchSwapTransactions(walletAddress: string): Promise<SwapTransaction[]> {
+export async function fetchSwapTransactions(walletAddress: string, max = 500): Promise<SwapTransaction[]> {
   const apiKey = process.env.HELIUS_API_KEY;
   if (!apiKey) throw new Error('HELIUS_API_KEY is not set');
 
-  const MAX = 500;
+  const MAX = max;
   const allTxs: HeliusEnhancedTransaction[] = [];
   let before: string | null = null;
 
