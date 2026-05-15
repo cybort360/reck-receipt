@@ -13,6 +13,7 @@ import { detectOvertrading } from '@/lib/overtrading';
 import { detectAddressPoisoning } from '@/lib/addressPoisoning';
 import { auditRatelimit } from '@/lib/ratelimit';
 import { KEYS } from '@/lib/redis/keys';
+import { computeRektScore } from '@/lib/rektScore';
 
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -169,11 +170,22 @@ export async function GET(req: NextRequest) {
       hasJitoTip: tx.hasJitoTip,
     })),
   };
+  const rektScore = computeRektScore({
+    totalLeakageUsd: summary.totalLeakageUsd,
+    transactionCount: summary.transactionCount,
+    tokenBreakdown,
+    overtrading,
+    deadTokens,
+    pnl,
+  });
+
   console.log('caching:', JSON.stringify(cacheObject).slice(0, 200));
 
   // All Redis writes in parallel — non-fatal ones are wrapped so they don't reject
   await Promise.all([
     redis.set(KEYS.audit(wallet), JSON.stringify(cacheObject), { ex: 14400 }),
+    redis.set(KEYS.rektScore(wallet), JSON.stringify(rektScore), { ex: 604800 }),
+    redis.zadd(KEYS.scoreIndex(), { score: rektScore.score, member: wallet }),
     redis.set(`receipt:${shareId}`, JSON.stringify({ wallet, ...summary }), { ex: 604800 }),
     redis.set(KEYS.shareByWallet(wallet), shareId),
     redis.zadd(KEYS.lbGlobal(), { score: summary.totalLeakageUsd, member: wallet }),
@@ -209,5 +221,5 @@ export async function GET(req: NextRequest) {
       : Promise.resolve(),
   ]);
 
-  return NextResponse.json({ ...cacheObject, peerAvgLeakageUsd, peerPercentile, pnl, isPro: proStatus.isPro });
+  return NextResponse.json({ ...cacheObject, peerAvgLeakageUsd, peerPercentile, pnl, rektScore, isPro: proStatus.isPro });
 }

@@ -16,4 +16,14 @@ export const KEYS = {
   shareByWallet: (wallet: string) => `rr:v1:share:wallet:${wallet}`,
   price: (dateISO: string) => `rr:v1:price:${dateISO}`,
   auditedWallets: () => `rr:v1:idx:audited-wallets`,
+  rektScore: (wallet: string) => `rr:v1:score:${wallet}`,
+  scoreIndex: () => `rr:v1:idx:scores`,
+  signalProvider: (wallet: string) => `rr:v1:signal:provider:${wallet}`,
+  signalCalls: (wallet: string) => `rr:v1:signal:calls:${wallet}`,
+  signalIndex: () => `rr:v1:idx:signal-providers`,
+  subscription: (subscriberWallet: string, providerWallet: string) =>
+    `rr:v1:signal:sub:${subscriberWallet}:${providerWallet}`,
+  providerEarnings: (wallet: string) => `rr:v1:signal:earnings:${wallet}`,
+  subscriptionPayment: (amount: string) => `rr:v1:signal:payment:${amount}`,
+  signalPayout: (wallet: string) => `rr:v1:signal:payout:${wallet}`,
 };
