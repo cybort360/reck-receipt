@@ -12,6 +12,7 @@ export interface PayoutRequest {
   requestedAt: number;
   status: 'pending' | 'paid';
   paidAt?: number;
+  source?: 'referral' | 'signal';
 }
 
 export async function GET(req: NextRequest) {
