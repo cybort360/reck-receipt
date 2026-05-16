@@ -12,12 +12,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  console.log('auditedWallets key:', KEYS.auditedWallets());
+
   const [walletsAudited, totalProviders, activeSubscriptions, payoutKeys] = await Promise.all([
     redis.zcard(KEYS.auditedWallets()),
     redis.zcard(KEYS.signalIndex()),
     redis.scard(KEYS.subscriptionIndex()),
     redis.keys('rr:v1:signal:payout:*'),
   ]);
+
+  console.log('auditedWallets count:', walletsAudited);
 
   let pendingPayouts = 0;
   if (payoutKeys.length > 0) {

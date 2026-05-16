@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auditWallet } from '@/lib/auditWallet';
+import { KEYS } from '@/lib/redis/keys';
 
 const MAX_WALLETS = 25;
 
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
 
   for (const wallet of wallets) {
     try {
+      console.log('writing to key:', KEYS.auditedWallets());
       await auditWallet(wallet);
       console.log(`Seeded: ${wallet}`);
       seeded++;
