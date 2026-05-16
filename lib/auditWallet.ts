@@ -171,6 +171,7 @@ export async function auditWallet(wallet: string) {
     redis.zadd(KEYS.scoreIndex(), { score: efficiencyResult.efficiencyScore, member: wallet }),
     redis.set(`receipt:${shareId}`, JSON.stringify({ wallet, ...summary }), { ex: 604800 }),
     redis.set(KEYS.shareByWallet(wallet), shareId),
+    redis.zadd(KEYS.auditedWallets(), { score: Date.now(), member: wallet }),
     redis.zadd(KEYS.lbGlobal(), { score: summary.totalLeakageUsd, member: wallet }),
     redis.zadd(weekKey, { score: summary.totalLeakageUsd, member: wallet }),
     redis.expire(weekKey, 1209600),
