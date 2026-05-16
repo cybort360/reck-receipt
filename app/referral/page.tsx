@@ -10,6 +10,7 @@ interface RefStats {
   clicks: number;
   conversions: number;
   earningsUsd: number;
+  payoutStatus?: 'pending' | 'paid' | null;
 }
 
 function ReferralContent() {
@@ -21,6 +22,9 @@ function ReferralContent() {
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [payoutRequesting, setPayoutRequesting] = useState(false);
+  const [payoutError, setPayoutError] = useState('');
+  const [payoutDone, setPayoutDone] = useState(false);
 
   useEffect(() => {
     const urlWallet = params.get('wallet');
@@ -35,7 +39,12 @@ function ReferralContent() {
     setWallet(resolved);
     fetch(`/api/referral/stats?wallet=${encodeURIComponent(resolved)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setStats(data))
+      .then(async (data) => {
+        if (!data) return;
+        const payoutRes = await fetch(`/api/referral/payout-status?wallet=${encodeURIComponent(resolved)}`);
+        const payoutData = payoutRes.ok ? await payoutRes.json() : {};
+        setStats({ ...data, payoutStatus: payoutData.status ?? null });
+      })
       .catch(() => null)
       .finally(() => setLoading(false));
   }, [params]);
@@ -57,6 +66,30 @@ function ReferralContent() {
       setError('Something went wrong. Please try again.');
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handlePayout() {
+    if (!wallet) return;
+    setPayoutRequesting(true);
+    setPayoutError('');
+    try {
+      const res = await fetch('/api/referral/payout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPayoutError(data.error ?? 'Request failed. Try again.');
+        return;
+      }
+      setPayoutDone(true);
+      setStats((prev) => prev ? { ...prev, payoutStatus: 'pending' } : prev);
+    } catch {
+      setPayoutError('Network error. Try again.');
+    } finally {
+      setPayoutRequesting(false);
     }
   }
 
@@ -141,9 +174,28 @@ function ReferralContent() {
                 <span className="text-[#00ff88] font-bold font-mono text-lg">${(stats.earningsUsd ?? 0).toFixed(2)}</span>
               </div>
             </div>
-            <p className="text-[#6b7280] text-xs font-mono leading-relaxed border-t border-[#1f2937] pt-3">
-              Payouts processed manually — reach out on Twitter when balance exceeds $10.
-            </p>
+            <div className="border-t border-[#1f2937] pt-3 flex flex-col gap-2">
+              {stats.payoutStatus === 'pending' || payoutDone ? (
+                <p className="text-[#6b7280] text-xs font-mono">
+                  Payout requested — we'll process it within 48 hours.
+                </p>
+              ) : (stats.earningsUsd ?? 0) >= 10 ? (
+                <>
+                  {payoutError && <p className="text-[#ff4444] text-xs font-mono">{payoutError}</p>}
+                  <button
+                    onClick={handlePayout}
+                    disabled={payoutRequesting}
+                    className="w-full border border-[#00ff88]/40 text-[#00ff88] text-xs font-mono py-2 rounded hover:bg-[#00ff88]/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {payoutRequesting ? 'Requesting…' : 'Request payout'}
+                  </button>
+                </>
+              ) : (
+                <p className="text-[#6b7280] text-xs font-mono">
+                  Minimum payout is $10. Keep referring to unlock withdrawals.
+                </p>
+              )}
+            </div>
           </div>
 
         </div>
