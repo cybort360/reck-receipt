@@ -54,6 +54,13 @@ export async function GET(req: NextRequest) {
           transfer.mint === usdcMint &&
           Math.abs(transfer.tokenAmount - amount) < 0.000001
         ) {
+          // Atomic lock — only the first concurrent request proceeds
+          const lockKey = `rr:v1:payment:lock:${amount}`;
+          const locked = await redis.set(lockKey, '1', { nx: true, ex: 60 });
+          if (!locked) {
+            return NextResponse.json({ status: 'confirmed', wallet: record.wallet });
+          }
+
           const plan = record.plan === 'signals' ? 'signals' : 'pro';
           if (record.plan === 'signals') {
             await grantSignals(record.wallet);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
+import { getTelegramChatId, sendTelegramMessage } from '@/lib/telegram';
 
 const THREE_DAYS_SECONDS = 259200;
 
@@ -37,9 +38,14 @@ export async function POST(req: NextRequest) {
 
     if (ttl > 0 && ttl <= THREE_DAYS_SECONDS) {
       const daysLeft = Math.floor(ttl / 86400);
-      console.log(
-        `[EXPIRY WARNING] wallet: ${subscriberWallet} provider: ${providerWallet} expires in: ${daysLeft} days`,
-      );
+      const chatId = await getTelegramChatId(subscriberWallet);
+      if (chatId) {
+        const dayLabel = daysLeft === 1 ? '1 day' : `${daysLeft} days`;
+        await sendTelegramMessage(
+          chatId,
+          `⏳ Your signal subscription expires in ${dayLabel}. Renew at rektreceipt.xyz/signals to keep receiving alerts.`,
+        );
+      }
       warned++;
       continue;
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
 import { generateWeeklySummary } from '@/lib/watch';
+import { auditWallet } from '@/lib/auditWallet';
 
 interface WatchConfig {
   wallet: string;
@@ -42,13 +43,22 @@ export async function GET(req: NextRequest) {
       results.push({ wallet, sent: false, reason: 'no watch config' });
       continue;
     }
-    if (!rawAudit) {
-      results.push({ wallet, sent: false, reason: 'no audit cache' });
-      continue;
-    }
 
     const config: WatchConfig = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : rawConfig;
-    const auditResult = typeof rawAudit === 'string' ? JSON.parse(rawAudit) : rawAudit;
+
+    let auditResult = rawAudit
+      ? (typeof rawAudit === 'string' ? JSON.parse(rawAudit) : rawAudit)
+      : null;
+
+    if (!auditResult) {
+      try {
+        const { cacheObject } = await auditWallet(wallet);
+        auditResult = cacheObject;
+      } catch {
+        results.push({ wallet, sent: false, reason: 'audit failed' });
+        continue;
+      }
+    }
     const summary = generateWeeklySummary(wallet, auditResult);
 
     if (config.email) {

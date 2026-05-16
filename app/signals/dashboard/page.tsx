@@ -294,7 +294,7 @@ export default function DashboardPage() {
     try {
       const res = await fetch('/api/signals/payout-request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken },
         body: JSON.stringify({ providerWallet: connectedWallet, amount: earnings }),
       });
 
