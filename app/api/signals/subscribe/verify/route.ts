@@ -51,6 +51,10 @@ export async function GET(req: NextRequest) {
         transfer.mint === usdcMint &&
         Math.abs(transfer.tokenAmount - amount) < 0.000001
       ) {
+        const lockKey = `rr:v1:payment:lock:${amountParam}`;
+        const locked = await redis.set(lockKey, '1', { nx: true, ex: 60 });
+        if (!locked) return NextResponse.json({ status: 'confirmed' });
+
         await verifyAndGrantSubscription(amountParam);
         const walletShort = `${session.subscriberWallet.slice(0, 4)}...${session.subscriberWallet.slice(-4)}`;
         await sendPaymentConfirmation(session.subscriberWallet, 'signals', walletShort, session.priceUsdc);

@@ -44,6 +44,12 @@ export async function getSession(
   return typeof raw === 'string' ? JSON.parse(raw) : raw;
 }
 
+export async function isAdminToken(token: string): Promise<boolean> {
+  if (!token) return false;
+  const val = await redis.get(`rr:v1:admin:session:${token}`);
+  return val === '1';
+}
+
 export async function createSession(wallet: string): Promise<string> {
   const token = crypto.randomBytes(16).toString('hex');
   await redis.set(

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generalRatelimit } from '@/lib/ratelimit';
 import { buildSignalContext } from '@/lib/agent/contextPack';
 import { env } from '@/lib/env';
+import { getSession } from '@/lib/auth';
+import { getSubscription } from '@/lib/subscription';
 
 const SYSTEM_PROMPT =
   'You are a Solana execution assistant. You surface on-chain data to help traders make informed decisions. ' +
@@ -30,6 +32,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
+  const sessionToken = req.headers.get('x-session-token') ?? '';
+  const session = await getSession(sessionToken);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { providerWallet, tokenMint, subscriberWallet } = body;
 
   if (!providerWallet || typeof providerWallet !== 'string') {
@@ -40,6 +48,13 @@ export async function POST(req: NextRequest) {
   }
   if (!subscriberWallet || typeof subscriberWallet !== 'string') {
     return NextResponse.json({ error: 'subscriberWallet is required.' }, { status: 400 });
+  }
+  if (session.wallet !== subscriberWallet) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const subscription = await getSubscription(subscriberWallet, providerWallet);
+  if (!subscription) {
+    return NextResponse.json({ error: 'No active subscription' }, { status: 403 });
   }
 
   const context = await buildSignalContext(providerWallet, tokenMint, subscriberWallet);

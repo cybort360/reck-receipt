@@ -3,11 +3,9 @@ import { storeTelegramChatId, sendTelegramMessage } from '@/lib/telegram';
 
 export async function POST(req: NextRequest) {
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (webhookSecret) {
-    const incoming = req.headers.get('x-telegram-bot-api-secret-token');
-    if (incoming !== webhookSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  const incoming = req.headers.get('x-telegram-bot-api-secret-token');
+  if (!webhookSecret || incoming !== webhookSecret) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const body = await req.json().catch(() => ({}));

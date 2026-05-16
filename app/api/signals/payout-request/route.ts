@@ -28,14 +28,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests. Slow down.' }, { status: 429 });
   }
 
-  let body: { providerWallet?: unknown; amount?: unknown };
+  let body: { providerWallet?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { providerWallet, amount } = body;
+  const { providerWallet } = body;
 
   if (!providerWallet || typeof providerWallet !== 'string') {
     return NextResponse.json({ error: 'providerWallet is required' }, { status: 400 });
@@ -43,8 +43,22 @@ export async function POST(req: NextRequest) {
   if (session.wallet !== providerWallet) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (typeof amount !== 'number' || amount <= 0) {
-    return NextResponse.json({ error: 'amount must be a positive number' }, { status: 400 });
+
+  const rawEarnings = await redis.get<string>(KEYS.providerEarnings(providerWallet));
+  const amount = parseFloat(rawEarnings ?? '0');
+  if (amount < 10) {
+    return NextResponse.json(
+      { error: `Minimum payout is $10. Current balance: $${amount.toFixed(2)}` },
+      { status: 400 },
+    );
+  }
+
+  const existing = await redis.get(KEYS.signalPayout(providerWallet));
+  if (existing) {
+    const prev = typeof existing === 'string' ? JSON.parse(existing) : existing;
+    if (prev.status === 'pending') {
+      return NextResponse.json({ error: 'A payout request is already pending' }, { status: 409 });
+    }
   }
 
   const record: PayoutRequest = {
@@ -57,5 +71,5 @@ export async function POST(req: NextRequest) {
 
   await redis.set(KEYS.signalPayout(providerWallet), JSON.stringify(record));
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, amount });
 }

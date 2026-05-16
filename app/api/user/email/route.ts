@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
 import { generalRatelimit } from '@/lib/ratelimit';
+import { getSession } from '@/lib/auth';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: NextRequest) {
+  const sessionToken = req.headers.get('x-session-token') ?? '';
+  const session = await getSession(sessionToken);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1';
   const { success } = await generalRatelimit.limit(ip);
   if (!success) {
@@ -18,6 +25,9 @@ export async function POST(req: NextRequest) {
   }
 
   const wallet = body.wallet.trim();
+  if (session.wallet !== wallet) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const email = body.email.trim().toLowerCase();
 
   if (!wallet) {

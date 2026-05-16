@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isAdminToken } from '@/lib/auth';
 import { redis } from '@/lib/redis';
 
-function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.ADMIN_SECRET;
-  return !!secret && req.headers.get('x-admin-token') === secret;
-}
 
 export interface PayoutRequest {
   wallet: string;
@@ -16,7 +13,8 @@ export interface PayoutRequest {
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  const token = req.headers.get('x-admin-token') ?? '';
+  if (!(await isAdminToken(token))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
