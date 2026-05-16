@@ -22,6 +22,7 @@ function ReferralContent() {
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [sessionToken, setSessionToken] = useState('');
   const [payoutRequesting, setPayoutRequesting] = useState(false);
   const [payoutError, setPayoutError] = useState('');
   const [payoutDone, setPayoutDone] = useState(false);
@@ -74,9 +75,42 @@ function ReferralContent() {
     setPayoutRequesting(true);
     setPayoutError('');
     try {
+      let token = sessionToken;
+
+      if (!token) {
+        const solana = (window as unknown as { solana?: { connect: () => Promise<{ publicKey: { toString: () => string } }>; signMessage: (msg: Uint8Array, enc: string) => Promise<{ signature: Uint8Array }> } }).solana;
+        if (!solana) {
+          setPayoutError('No Solana wallet found. Install Phantom or Backpack.');
+          return;
+        }
+        const { publicKey } = await solana.connect();
+        if (publicKey.toString() !== wallet) {
+          setPayoutError('Connected wallet does not match. Switch to the correct wallet and try again.');
+          return;
+        }
+        const nonceRes = await fetch('/api/auth/nonce', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wallet }),
+        });
+        if (!nonceRes.ok) { setPayoutError('Failed to get sign-in message. Try again.'); return; }
+        const { message } = await nonceRes.json() as { message: string };
+        const sig = await solana.signMessage(new TextEncoder().encode(message), 'utf8');
+        const signatureBase64 = Buffer.from(sig.signature).toString('base64');
+        const verifyRes = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wallet, signature: signatureBase64 }),
+        });
+        if (!verifyRes.ok) { setPayoutError('Signature verification failed. Try again.'); return; }
+        const { token: newToken } = await verifyRes.json() as { token: string };
+        token = newToken;
+        setSessionToken(newToken);
+      }
+
       const res = await fetch('/api/referral/payout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-session-token': token },
         body: JSON.stringify({ wallet }),
       });
       const data = await res.json();
@@ -86,8 +120,9 @@ function ReferralContent() {
       }
       setPayoutDone(true);
       setStats((prev) => prev ? { ...prev, payoutStatus: 'pending' } : prev);
-    } catch {
-      setPayoutError('Network error. Try again.');
+    } catch (err) {
+      const code = (err as { code?: number }).code;
+      setPayoutError(code === 4001 ? 'Signature rejected.' : 'Something went wrong. Try again.');
     } finally {
       setPayoutRequesting(false);
     }

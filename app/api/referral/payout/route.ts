@@ -2,16 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
 import { getRefStats } from '@/lib/referral';
+import { getSession } from '@/lib/auth';
 
 const MIN_PAYOUT_USD = 10;
 
 export async function POST(req: NextRequest) {
+  const sessionToken = req.headers.get('x-session-token') ?? '';
+  if (!sessionToken) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const session = await getSession(sessionToken);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body.wallet !== 'string' || !body.wallet.trim()) {
     return NextResponse.json({ error: 'wallet required' }, { status: 400 });
   }
 
   const wallet = body.wallet.trim();
+
+  if (session.wallet !== wallet) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const code = await redis.get<string>(KEYS.refWallet(wallet));
   if (!code) {

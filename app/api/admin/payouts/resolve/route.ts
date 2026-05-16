@@ -38,8 +38,9 @@ export async function POST(req: NextRequest) {
     if (code) {
       const record = await getRefStats(code);
       if (record) {
+        const remaining = Math.max(0, record.earningsUsd - payout.amount);
         resets.push(
-          redis.set(KEYS.refCode(code), JSON.stringify({ ...record, earningsUsd: 0 })),
+          redis.set(KEYS.refCode(code), JSON.stringify({ ...record, earningsUsd: remaining })),
         );
       }
     }
