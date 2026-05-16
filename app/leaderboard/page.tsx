@@ -6,8 +6,17 @@ import { LeaderboardTable } from '@/components/LeaderboardTable';
 import type { LeaderboardEntry } from '@/components/LeaderboardTable';
 
 export const metadata: Metadata = {
-  title: 'Top Traders by RektScore — RektReceipt',
-  description: 'The highest-scoring Solana wallets ranked by execution quality.',
+  title: 'Leaderboard',
+  description: 'Top Solana wallets ranked by execution efficiency and RektScore.',
+  openGraph: {
+    title: 'Leaderboard',
+    description: 'Top Solana wallets ranked by execution efficiency and RektScore.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Leaderboard',
+    description: 'Top Solana wallets ranked by execution efficiency and RektScore.',
+  },
 };
 
 interface StoredScore {

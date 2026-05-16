@@ -3,23 +3,31 @@ import { KEYS } from './redis/keys';
 
 interface ProStatus {
   isPro: boolean;
+  plan: 'pro' | 'signals' | null;
   paymentRef?: string;
   source?: string;
 }
 
 interface ProRecord {
-  paymentRef: string;
-  source: string;
+  plan?: 'pro' | 'signals';
+  paymentRef?: string;
+  source?: string;
+  grantedAt?: number;
 }
 
 export async function getProStatus(wallet: string): Promise<ProStatus> {
   const record = await redis.get<ProRecord>(KEYS.userPro(wallet));
-  if (!record) return { isPro: false };
-  return { isPro: true, paymentRef: record.paymentRef, source: record.source };
+  if (!record) return { isPro: false, plan: null };
+  const plan = record.plan ?? 'pro';
+  return { isPro: true, plan, paymentRef: record.paymentRef, source: record.source };
 }
 
 export async function grantPro(wallet: string, paymentRef: string, source: string): Promise<void> {
-  await redis.set(KEYS.userPro(wallet), JSON.stringify({ paymentRef, source }));
+  await redis.set(KEYS.userPro(wallet), JSON.stringify({ plan: 'pro', paymentRef, source }));
+}
+
+export async function grantSignals(wallet: string): Promise<void> {
+  await redis.set(KEYS.userPro(wallet), JSON.stringify({ plan: 'signals', grantedAt: Date.now() }));
 }
 
 export async function revokePro(wallet: string): Promise<void> {

@@ -68,6 +68,14 @@ export interface AccountData {
   }>;
 }
 
+export interface SwapLeg {
+  mint: string;
+  direction: 'buy' | 'sell';
+  solAmount: number;   // lamports (raw native balance change magnitude)
+  tokenAmount: number; // raw token amount from tokenTransfers
+  timestamp: number;   // unix seconds
+}
+
 export interface SwapTransaction {
   signature: string;
   timestamp: number;
@@ -78,6 +86,46 @@ export interface SwapTransaction {
   likelySandwiched: boolean;
   tokenTransfers: TokenTransfer[];
   accountData: AccountData[];
+  legs: SwapLeg[];
+}
+
+function extractLegs(
+  walletAddress: string,
+  tokenTransfers: HeliusTokenTransfer[],
+  accountData: HeliusAccountData[],
+  fee: number,
+  timestamp: number,
+): SwapLeg[] {
+  const walletAccount = accountData.find((a) => a.account === walletAddress);
+  const nativeChange = walletAccount?.nativeBalanceChange ?? 0;
+
+  const tokensIn = tokenTransfers.filter((t) => t.toUserAccount === walletAddress);
+  const tokensOut = tokenTransfers.filter((t) => t.fromUserAccount === walletAddress);
+
+  if (tokensIn.length === 0 && tokensOut.length === 0) return [];
+
+  // Significant SOL movement means SOL is one side of the swap
+  const solMoved = Math.abs(nativeChange) > fee;
+
+  if (solMoved && nativeChange < 0 && tokensIn.length > 0) {
+    // SOL → Token (buy)
+    const primary = tokensIn.reduce((a, b) => (b.tokenAmount > a.tokenAmount ? b : a));
+    return [{ mint: primary.mint, direction: 'buy', solAmount: Math.abs(nativeChange), tokenAmount: primary.tokenAmount, timestamp }];
+  }
+
+  if (solMoved && nativeChange > 0 && tokensOut.length > 0) {
+    // Token → SOL (sell)
+    const primary = tokensOut.reduce((a, b) => (b.tokenAmount > a.tokenAmount ? b : a));
+    return [{ mint: primary.mint, direction: 'sell', solAmount: nativeChange, tokenAmount: primary.tokenAmount, timestamp }];
+  }
+
+  // Token → Token: represent as buy of received token with solAmount = 0
+  if (tokensIn.length > 0) {
+    const primary = tokensIn.reduce((a, b) => (b.tokenAmount > a.tokenAmount ? b : a));
+    return [{ mint: primary.mint, direction: 'buy', solAmount: 0, tokenAmount: primary.tokenAmount, timestamp }];
+  }
+
+  return [];
 }
 
 export async function fetchSwapTransactions(walletAddress: string, max = 500): Promise<SwapTransaction[]> {
@@ -126,6 +174,7 @@ export async function fetchSwapTransactions(walletAddress: string, max = 500): P
 
     const likelySandwiched = hasJitoTip && jitoTipLamports > 100000;
 
+    const accountData = tx.accountData ?? [];
     return {
       signature: tx.signature,
       timestamp: tx.timestamp,
@@ -135,7 +184,8 @@ export async function fetchSwapTransactions(walletAddress: string, max = 500): P
       slippagePct,
       likelySandwiched,
       tokenTransfers,
-      accountData: tx.accountData ?? [],
+      accountData,
+      legs: extractLegs(walletAddress, tx.tokenTransfers ?? [], accountData, tx.fee, tx.timestamp),
     };
   });
 }

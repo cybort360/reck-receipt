@@ -26,4 +26,7 @@ export const KEYS = {
   providerEarnings: (wallet: string) => `rr:v1:signal:earnings:${wallet}`,
   subscriptionPayment: (amount: string) => `rr:v1:signal:payment:${amount}`,
   signalPayout: (wallet: string) => `rr:v1:signal:payout:${wallet}`,
+  authNonce: (wallet: string) => `rr:v1:auth:nonce:${wallet}`,
+  authSession: (token: string) => `rr:v1:auth:session:${token}`,
+  subscriptionIndex: () => `rr:v1:idx:subscriptions`,
 };

@@ -59,6 +59,12 @@ interface AuditResult extends LeakageSummary {
     count: number;
   };
   rektScore?: RektScoreData;
+  realizedPnl?: {
+    totalRealizedSOL: number;
+    closedPositions: number;
+    winRate: number;
+    avgPnlPerTrade: number;
+  };
 }
 
 interface RektScoreData {
@@ -78,6 +84,9 @@ interface WeeklyStats {
   topGrade?: string;
   topMaskedWallet?: string;
   shareId?: string;
+  walletCount?: number;
+  feesFoundUsd?: number;
+  rugsDetected?: number;
 }
 
 function truncateWallet(address: string): string {
@@ -111,6 +120,12 @@ function getRektScoreGradeColor(grade: string): string {
   if (grade === 'S' || grade === 'A') return '#00ff88';
   if (grade === 'B') return '#ffd700';
   if (grade === 'C' || grade === 'D') return '#ff8800';
+  return '#ff4444';
+}
+
+function getBarColor(value: number): string {
+  if (value >= 70) return '#00ff88';
+  if (value >= 40) return '#ff8800';
   return '#ff4444';
 }
 
@@ -156,7 +171,7 @@ function RektScoreCard({ score, wallet }: { score: RektScoreData; wallet: string
               <div className="h-0.5 bg-[#1f2937] rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full"
-                  style={{ width: `${value}%`, backgroundColor: gradeColor, opacity: 0.65 }}
+                  style={{ width: `${value}%`, backgroundColor: getBarColor(value), opacity: 0.65 }}
                 />
               </div>
             </div>
@@ -190,6 +205,26 @@ function Accordion({ label, children }: { label: string; children: React.ReactNo
 }
 
 type NavLink = { label: string; href: string } | { divider: true };
+
+const MOBILE_NAV_LINKS: NavLink[] = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Signals', href: '/signals' },
+  { divider: true },
+  { label: 'Rektboard', href: '/rektboard' },
+  { label: 'Graveyard', href: '/graveyard' },
+  { label: 'Alpha Feed', href: '/alpha' },
+  { label: 'Best Traders', href: '/bestboard' },
+  { label: 'Compare', href: '/compare' },
+  { divider: true },
+  { label: 'Leaderboard', href: '/leaderboard' },
+  { label: 'Score', href: '/score' },
+  { divider: true },
+  { label: 'Developers', href: '/developers' },
+];
+
+const MOBILE_LINKS = MOBILE_NAV_LINKS.filter(
+  (l): l is { label: string; href: string } => !('divider' in l),
+);
 
 const EXPLORE_LINKS: NavLink[] = [
   { label: 'Rektboard', href: '/rektboard' },
@@ -256,6 +291,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState<WeeklyStats | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const rafRef = useRef(0);
+  const navRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch('/api/stats')
@@ -275,6 +313,144 @@ export default function Home() {
       }).catch(() => null);
     }
   }, []);
+
+  // ── Matrix rain canvas ──
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    console.log('matrix started');
+
+    const CHARS = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+    const canvas = document.createElement('canvas');
+    canvas.style.position = 'fixed';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100vw';
+    canvas.style.height = '100vh';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '0';
+    canvas.style.opacity = '1';
+    document.body.prepend(canvas);
+
+    const ctx = canvas.getContext('2d')!;
+    let W = window.innerWidth;
+    let H = window.innerHeight;
+    let FS = W < 768 ? 11 : 13;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    let drops = Array.from({ length: Math.floor(W / FS) }, () =>
+      Math.floor(Math.random() * -(H / FS)),
+    );
+    let last = 0;
+    let running = true;
+
+    function draw(now: number) {
+      if (!running) return;
+      rafRef.current = requestAnimationFrame(draw);
+      if (now - last < 33) return;
+      last = now;
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(0,0,0,0.05)';
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = '#00ff88';
+      ctx.font = `${FS}px monospace`;
+      for (let i = 0; i < drops.length; i++) {
+        // edge fade: center 40% at 0.055, linear falloff to 0.01 at edges
+        const dist = Math.abs((i * FS) / W - 0.5);
+        ctx.globalAlpha = dist <= 0.2 ? 0.055 : 0.055 - 0.045 * Math.min((dist - 0.2) / 0.3, 1);
+        ctx.fillText(CHARS[Math.floor(Math.random() * CHARS.length)], i * FS, drops[i] * FS);
+        if (drops[i] * FS > H && Math.random() > 0.975)
+          drops[i] = Math.floor(Math.random() * -10);
+        drops[i]++;
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    rafRef.current = requestAnimationFrame(draw);
+
+    function onResize() {
+      W = window.innerWidth;
+      H = window.innerHeight;
+      FS = W < 768 ? 11 : 13;
+      const newDpr = window.devicePixelRatio || 1;
+      canvas.width = W * newDpr;
+      canvas.height = H * newDpr;
+      ctx.scale(newDpr, newDpr);
+      drops = Array.from({ length: Math.floor(W / FS) }, () =>
+        Math.floor(Math.random() * -(H / FS)),
+      );
+    }
+
+    window.addEventListener('resize', onResize);
+
+    return () => {
+      running = false;
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener('resize', onResize);
+      canvas.remove();
+    };
+  }, []);
+
+  // ── Typewriter subheading ──
+  const SUBHEADING_TEXT =
+    "Audit your wallet’s execution quality — slippage, fees, and Jito tips.";
+  const [typedText, setTypedText] = useState('');
+  const [typingDone, setTypingDone] = useState(false);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setTypedText(SUBHEADING_TEXT);
+      setTypingDone(true);
+      return;
+    }
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      setTypedText(SUBHEADING_TEXT.slice(0, i));
+      if (i >= SUBHEADING_TEXT.length) { clearInterval(id); setTypingDone(true); }
+    }, 35);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Stat count-up ──
+  const [displayAmount, setDisplayAmount] = useState(0);
+  useEffect(() => {
+    if (!stats || stats.topLeakageUsd <= 0) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setDisplayAmount(stats.topLeakageUsd);
+      return;
+    }
+    const target = stats.topLeakageUsd;
+    const start = performance.now();
+    const DUR = 1000;
+    let raf = 0;
+    function tick(now: number) {
+      const t = Math.min((now - start) / DUR, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplayAmount(target * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else setDisplayAmount(target);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [stats]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [mobileMenuOpen]);
 
   async function handleShare() {
     if (!result) return;
@@ -316,42 +492,100 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white px-4 sm:px-6 py-8 sm:py-12">
+    <main className="min-h-screen text-white px-4 sm:px-6 py-8 sm:py-12" style={{ position: 'relative', zIndex: 1, backgroundColor: 'transparent' }}>
       <div className="max-w-[900px] mx-auto flex flex-col gap-6">
 
         {/* ── Nav ── */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold tracking-tight font-mono">RektReceipt</h1>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="nav-link text-[#6b7280] text-xs font-mono hover:text-[#9ca3af] transition-colors">
-              Dashboard
-            </Link>
-            <Link href="/signals" className="nav-link text-[#6b7280] text-xs font-mono hover:text-[#9ca3af] transition-colors">
-              Signals
-            </Link>
-            <ExploreDropdown />
+        <div ref={navRef} className="flex flex-col relative">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold tracking-tight font-mono">RektReceipt</h1>
+            {/* Desktop links */}
+            <div className="hidden md:flex items-center gap-4">
+              <Link href="/dashboard" className="nav-link text-[#6b7280] text-xs font-mono hover:text-[#9ca3af] transition-colors">
+                Dashboard
+              </Link>
+              <Link href="/signals" className="nav-link text-[#6b7280] text-xs font-mono hover:text-[#9ca3af] transition-colors">
+                Signals
+              </Link>
+              <ExploreDropdown />
+            </div>
+            {/* Mobile hamburger */}
+            <button
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              className="md:hidden"
+              style={{ background: 'none', border: 'none', outline: 'none', padding: 0, cursor: 'pointer' }}
+              aria-label="Toggle menu"
+              aria-expanded={mobileMenuOpen}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="1" y="5" width="22" height="2" fill="white" />
+                <rect x="1" y="11" width="22" height="2" fill="white" />
+                <rect x="1" y="17" width="22" height="2" fill="white" />
+              </svg>
+            </button>
           </div>
+          {/* Mobile dropdown — absolute overlay, full viewport width */}
+          {mobileMenuOpen && (
+            <div
+              className="md:hidden"
+              style={{
+                position: 'absolute',
+                left: '-16px',
+                right: '-16px',
+                top: '100%',
+                zIndex: 50,
+                backgroundColor: '#0a0a0a',
+                borderBottom: '1px solid #1a1a1a',
+              }}
+            >
+              {MOBILE_LINKS.map((link, i) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{
+                    display: 'block',
+                    color: 'white',
+                    fontSize: '15px',
+                    fontFamily: 'monospace',
+                    paddingLeft: '20px',
+                    paddingRight: '20px',
+                    paddingTop: '18px',
+                    paddingBottom: '18px',
+                    ...(i < MOBILE_LINKS.length - 1 ? { borderBottom: '1px solid #1a1a1a' } : {}),
+                  }}
+                  className="hover:bg-[#111111] transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── Hero — shown until first result loads ── */}
         {!result && (
-          <div className="flex flex-col items-center gap-6 py-8 sm:py-14">
+          <div className="flex flex-col items-center gap-6 pt-8 pb-12 sm:py-14">
             <div className="flex flex-col items-center gap-2 text-center max-w-xl">
-              <h2 className="text-2xl sm:text-3xl font-bold font-mono leading-tight">
+              <h2
+                className="hero-heading text-2xl sm:text-3xl font-bold font-mono leading-tight"
+                data-text="Find out how much Solana has taken from you."
+              >
                 Find out how much<br />Solana has taken from you.
               </h2>
               <p className="text-[#6b7280] text-sm font-mono">
-                Audit your wallet&apos;s execution quality — slippage, fees, and Jito tips.
+                {typedText}
+                {!typingDone && <span className="typing-cursor" aria-hidden="true">|</span>}
               </p>
             </div>
 
             {stats && stats.topLeakageUsd > 0 && stats.shareId && (
               <Link
                 href={`/share/${stats.shareId}`}
-                className="w-full max-w-[600px] flex items-center gap-2 bg-[#111111] border border-[#1f2937] rounded px-3 py-2 text-xs font-mono hover:border-[#2d3748] transition-colors"
+                className="stat-ticker w-full max-w-[600px] flex items-center gap-2 bg-[#111111] border border-[#1f2937] rounded px-3 py-2 text-xs font-mono hover:border-[#2d3748] transition-colors"
               >
                 <span className="text-[#6b7280]">This week&apos;s most rekt wallet lost</span>
-                <span className="text-[#ff4444] font-bold">${stats.topLeakageUsd.toFixed(2)}</span>
+                <span className="text-[#ff4444] font-bold">${displayAmount.toFixed(2)}</span>
                 {stats.topGrade && (
                   <span className={`font-bold ml-auto ${getGrade(stats.topLeakageUsd).color}`}>
                     {stats.topGrade}
@@ -394,11 +628,12 @@ export default function Home() {
                 { label: 'RUG RADAR', desc: 'Check any token before you ape', href: '/token' },
                 { label: 'ALPHA FEED', desc: 'See what A-grade wallets are trading', href: '/alpha' },
                 { label: 'GRAVEYARD', desc: 'Tokens that rugged the most wallets', href: '/graveyard' },
-              ].map((card) => (
+              ].map((card, i) => (
                 <Link
                   key={card.href}
                   href={card.href}
-                  className="border border-[#1f2937] hover:border-[#2d3748] rounded-lg bg-[#111111] hover:bg-[#161f2e] p-3 flex flex-col gap-1.5 transition-colors group"
+                  className="feature-card border border-[#1f2937] hover:border-[#2d3748] rounded-lg bg-[#111111] hover:bg-[#161f2e] p-3 flex flex-col gap-1.5 transition-colors group"
+                  style={{ animationDelay: `${(i + 1) * 0.2}s` }}
                 >
                   <span className="text-[#6b7280] text-[10px] font-mono tracking-widest group-hover:text-[#9ca3af] transition-colors">
                     {card.label}
@@ -408,6 +643,14 @@ export default function Home() {
                   </span>
                 </Link>
               ))}
+            </div>
+
+            <div className="w-full max-w-[600px] flex items-center justify-center gap-4 text-[11px] font-mono text-[#374151] flex-wrap">
+              <span>{(stats?.walletCount ?? 0).toLocaleString()} wallets audited</span>
+              <span className="text-[#1f2937]">·</span>
+              <span>${(stats?.feesFoundUsd ?? 0).toFixed(0)} in fees found</span>
+              <span className="text-[#1f2937]">·</span>
+              <span>{(stats?.rugsDetected ?? 0)} rugs detected</span>
             </div>
 
             {error && <p className="text-[#ff4444] text-sm font-mono">{error}</p>}
@@ -444,17 +687,17 @@ export default function Home() {
             )}
 
             {/* Verdict lines — full width, above grid */}
-            <div className="flex flex-col gap-1.5">
-              <p className="text-xs font-mono text-[#6b7280] px-1">
+            <div className="border border-[#1f2937] rounded-lg bg-[#111111] px-4 py-3 flex flex-col gap-1.5">
+              <p className="text-xs font-mono text-[#6b7280]">
                 You lost{' '}
                 <span className="text-[#ff4444]">${result.totalLeakageUsd.toFixed(2)}</span>
                 {' '}to fees and avoidable costs across {result.transactionCount} swaps.
               </p>
               {result.addressPoisoning?.count === 0 && (
-                <p className="text-xs font-mono text-[#6b7280] px-1">No address poisoning attempts detected.</p>
+                <p className="text-xs font-mono text-[#6b7280]">No address poisoning attempts detected.</p>
               )}
               {result.peerPercentile != null && Number.isFinite(result.peerPercentile) && (
-                <p className={`text-xs font-mono px-1 ${result.peerPercentile > 50 ? 'text-[#ff4444]' : 'text-[#00ff88]'}`}>
+                <p className={`text-xs font-mono ${result.peerPercentile > 50 ? 'text-[#ff4444]' : 'text-[#00ff88]'}`}>
                   You leaked more than {result.peerPercentile}% of wallets with similar trade volume.
                 </p>
               )}
@@ -482,6 +725,43 @@ export default function Home() {
                         {getGrade(result.totalLeakageUsd).grade}
                       </span>
                     </div>
+
+                    {/* Realized PnL section */}
+                    {result.realizedPnl && (
+                      <>
+                        <div className="py-2">
+                          <p className="text-[10px] font-mono text-[#374151] tracking-widest">REALIZED P&amp;L</p>
+                        </div>
+                        {result.realizedPnl.closedPositions === 0 ? (
+                          <div className="py-2">
+                            <p className="text-[#6b7280] text-xs font-mono italic">No closed positions found in recent history</p>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between py-2 text-xs sm:text-sm font-mono">
+                              <span className="text-[#6b7280]">Total Realized SOL</span>
+                              <span className={result.realizedPnl.totalRealizedSOL >= 0 ? 'text-[#00ff88] font-bold' : 'text-[#ff4444] font-bold'}>
+                                {result.realizedPnl.totalRealizedSOL >= 0 ? '+' : ''}{result.realizedPnl.totalRealizedSOL.toFixed(4)} SOL
+                              </span>
+                            </div>
+                            <div className="flex justify-between py-2 text-xs sm:text-sm font-mono">
+                              <span className="text-[#6b7280]">Win Rate</span>
+                              <span className="text-white">{result.realizedPnl.winRate.toFixed(1)}%</span>
+                            </div>
+                            <div className="flex justify-between py-2 text-xs sm:text-sm font-mono">
+                              <span className="text-[#6b7280]">Closed Positions</span>
+                              <span className="text-white">{result.realizedPnl.closedPositions}</span>
+                            </div>
+                            <div className="flex justify-between py-2 text-xs sm:text-sm font-mono">
+                              <span className="text-[#6b7280]">Avg P&amp;L per Trade</span>
+                              <span className={result.realizedPnl.avgPnlPerTrade >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}>
+                                {result.realizedPnl.avgPnlPerTrade >= 0 ? '+' : ''}{result.realizedPnl.avgPnlPerTrade.toFixed(4)} SOL
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                   <div className="flex justify-between items-baseline mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#1f2937]">
                     <span className="text-[#6b7280] text-xs tracking-widest font-mono">TOTAL REKT</span>
@@ -725,9 +1005,17 @@ export default function Home() {
         )}
 
         {/* ── Footer ── */}
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end items-center gap-3 pt-2">
+          <Link href="/tos" className="nav-link text-[#374151] text-[11px] font-mono hover:text-[#6b7280] transition-colors">
+            Terms
+          </Link>
+          <span className="text-[#1f2937] text-[11px] font-mono select-none">·</span>
+          <Link href="/privacy" className="nav-link text-[#374151] text-[11px] font-mono hover:text-[#6b7280] transition-colors">
+            Privacy
+          </Link>
+          <span className="text-[#1f2937] text-[11px] font-mono select-none">·</span>
           <Link href="/developers" className="nav-link text-[#374151] text-[11px] font-mono hover:text-[#6b7280] transition-colors">
-            Developers →
+            Developers
           </Link>
         </div>
 

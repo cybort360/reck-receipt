@@ -1,20 +1,29 @@
 import { redis } from './redis';
 import { KEYS } from './redis/keys';
 
-export function generateUniqueAmount(): number {
+export function generateProAmount(): number {
   const noise = Math.floor(Math.random() * 9999) + 1;
   const decimal = noise / 1_000_000;
   return parseFloat((4.99 + decimal).toFixed(6));
 }
 
-export async function createPaymentSession(wallet: string): Promise<{ amount: number; expiresAt: number }> {
-  const amount = generateUniqueAmount();
+export function generateSignalsAmount(): number {
+  const noise = Math.floor(Math.random() * 9999) + 1;
+  const decimal = noise / 1_000_000;
+  return parseFloat((14.99 + decimal).toFixed(6));
+}
+
+export async function createPaymentSession(
+  wallet: string,
+  plan: 'pro' | 'signals' = 'pro',
+): Promise<{ amount: number; expiresAt: number }> {
+  const amount = plan === 'signals' ? generateSignalsAmount() : generateProAmount();
   const createdAt = Date.now();
   const expiresAt = createdAt + 1800 * 1000;
 
   await redis.set(
     KEYS.payment(String(amount)),
-    JSON.stringify({ wallet, createdAt, status: 'pending' }),
+    JSON.stringify({ wallet, plan, createdAt, status: 'pending' }),
     { ex: 1800 },
   );
 

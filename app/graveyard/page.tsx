@@ -64,8 +64,16 @@ export default function GraveyardPage() {
       )}
 
       {!loading && !error && tokens.length === 0 && (
-        <div className="w-full max-w-lg border border-[#1f2937] rounded-lg bg-[#111111] p-8 text-center">
-          <p className="text-[#6b7280] text-xs font-mono">No data yet — run some audits first.</p>
+        <div className="w-full max-w-lg border border-[#1f2937] rounded-lg bg-[#111111] p-8 flex flex-col items-center gap-4 text-center">
+          <p className="text-[#6b7280] text-xs font-mono leading-relaxed">
+            Not enough data yet. Empty states fill as more wallets get audited.
+          </p>
+          <Link
+            href="/"
+            className="border border-[#1f2937] hover:border-[#2d3748] text-[#9ca3af] hover:text-white px-4 py-2 rounded text-xs font-mono transition-colors"
+          >
+            Audit a Wallet
+          </Link>
         </div>
       )}
 
@@ -108,23 +116,15 @@ export default function GraveyardPage() {
                 </div>
               </div>
 
-              {/* Bottom row: buy links */}
-              <div className="flex gap-2 pl-10">
+              {/* Bottom row: DexScreener link */}
+              <div className="pl-10">
                 <a
-                  href={`https://jup.ag/swap/SOL-${token.mint}?referral=DfQgaajq6LfcLHZuqRC36GoWbH9iqw8hGGnkCXcNbRiH&feeBps=50`}
+                  href={`https://dexscreener.com/solana/${token.mint}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="border border-[#00ff88]/30 text-[#00ff88]/70 hover:border-[#00ff88]/60 hover:text-[#00ff88] px-2.5 py-0.5 rounded text-[10px] font-mono transition-colors"
+                  className="text-[#6b7280] hover:text-white text-[10px] font-mono transition-colors"
                 >
-                  Buy on Jupiter
-                </a>
-                <a
-                  href={`https://axiom.trade/t/${token.mint}?ref=woctane`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="border border-[#1f2937] text-[#6b7280] hover:border-[#2d3748] hover:text-[#9ca3af] px-2.5 py-0.5 rounded text-[10px] font-mono transition-colors"
-                >
-                  Axiom
+                  View on DexScreener →
                 </a>
               </div>
             </div>

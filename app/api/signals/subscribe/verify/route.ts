@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
 import { verifyAndGrantSubscription } from '@/lib/subscription';
+import { sendPaymentConfirmation } from '@/lib/email';
 
 interface SubscriptionPaymentSession {
   subscriberWallet: string;
@@ -50,6 +51,8 @@ export async function GET(req: NextRequest) {
         Math.abs(transfer.tokenAmount - amount) < 0.000001
       ) {
         await verifyAndGrantSubscription(amountParam);
+        const walletShort = `${session.subscriberWallet.slice(0, 4)}...${session.subscriberWallet.slice(-4)}`;
+        await sendPaymentConfirmation(session.subscriberWallet, 'signals', walletShort, session.priceUsdc);
         return NextResponse.json({ status: 'confirmed' });
       }
     }

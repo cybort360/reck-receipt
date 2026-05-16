@@ -1,4 +1,4 @@
-import type { SwapTransaction } from './helius';
+import type { SwapTransaction, SwapLeg } from './helius';
 import { getSolPriceAtTimestamp } from './price';
 
 export interface PerTrade {
@@ -15,6 +15,59 @@ export interface PnlResult {
   totalGrossValueUsd: number;
   totalNetValueUsd: number;
   perTrade: PerTrade[];
+}
+
+export interface RealizedPnlResult {
+  totalRealizedSOL: number;
+  closedPositions: number;
+  winRate: number;        // 0-100
+  avgPnlPerTrade: number; // SOL
+}
+
+export function calculateRealizedPnl(swaps: SwapLeg[]): RealizedPnlResult {
+  // Group legs by token mint
+  const byMint = new Map<string, { buys: SwapLeg[]; sells: SwapLeg[] }>();
+  for (const leg of swaps) {
+    if (!byMint.has(leg.mint)) byMint.set(leg.mint, { buys: [], sells: [] });
+    const group = byMint.get(leg.mint)!;
+    if (leg.direction === 'buy') group.buys.push(leg); else group.sells.push(leg);
+  }
+
+  let totalRealizedSOL = 0;
+  let closedPositions = 0;
+  let wins = 0;
+
+  for (const { buys, sells } of byMint.values()) {
+    // Skip tokens never sold (wallet still holds entirely)
+    if (sells.length === 0) continue;
+    // Skip tokens never bought in this window (no cost basis to work from)
+    if (buys.length === 0) continue;
+
+    const totalBoughtTokens = buys.reduce((s, l) => s + l.tokenAmount, 0);
+    const totalSolSpentLamports = buys.reduce((s, l) => s + l.solAmount, 0);
+    const totalSoldTokens = sells.reduce((s, l) => s + l.tokenAmount, 0);
+    const totalSolReceivedLamports = sells.reduce((s, l) => s + l.solAmount, 0);
+
+    if (totalBoughtTokens === 0) continue;
+
+    // Proportional cost basis: (amountSold / totalBought) * totalSolSpent
+    // Cap proportion at 1 to handle sells that exceed the audited buy window
+    const proportion = Math.min(totalSoldTokens / totalBoughtTokens, 1);
+    const costBasisLamports = proportion * totalSolSpentLamports;
+
+    const realizedSOL = (totalSolReceivedLamports - costBasisLamports) / 1e9;
+
+    totalRealizedSOL += realizedSOL;
+    closedPositions += 1;
+    if (realizedSOL > 0) wins += 1;
+  }
+
+  return {
+    totalRealizedSOL,
+    closedPositions,
+    winRate: closedPositions > 0 ? (wins / closedPositions) * 100 : 0,
+    avgPnlPerTrade: closedPositions > 0 ? totalRealizedSOL / closedPositions : 0,
+  };
 }
 
 function tokenAmount(rawAmount: string, decimals: number): number {

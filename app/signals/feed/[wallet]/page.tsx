@@ -22,7 +22,17 @@ interface SignalCall {
   currentPrice: number;
   note: string;
   timestamp: number;
+  status?: 'open' | 'closed';
+  closedAt?: number;
+  closedPrice?: number;
+  finalPnlPercent?: number;
 }
+
+type ContextStatus =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'done'; text: string }
+  | { status: 'error' };
 
 function pnl(direction: 'buy' | 'sell', entry: number, current: number): number {
   if (entry === 0) return 0;
@@ -102,57 +112,122 @@ function LockedState({
 function SignalCard({
   call,
   livePrice,
+  isContextOpen,
+  contextStatus,
+  onGetContext,
 }: {
   call: SignalCall;
   livePrice: number | undefined;
+  isContextOpen: boolean;
+  contextStatus: ContextStatus;
+  onGetContext: () => void;
 }) {
-  const current = livePrice ?? call.currentPrice;
-  const p = pnl(call.direction, call.entryPrice, current);
-  const pnlColor = p >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]';
-  const hasLive = livePrice !== undefined;
+  const isClosed = call.status === 'closed';
+  const current = isClosed
+    ? (call.closedPrice ?? call.currentPrice)
+    : (livePrice ?? call.currentPrice);
+  const p = isClosed
+    ? (call.finalPnlPercent ?? 0)
+    : pnl(call.direction, call.entryPrice, current);
+  const pnlColor = isClosed ? 'text-white' : p >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]';
+  const hasLive = !isClosed && livePrice !== undefined;
+
+  const btnLabel =
+    contextStatus.status === 'loading'
+      ? 'Loading…'
+      : isContextOpen
+      ? '▴ Hide'
+      : 'Get Context';
 
   return (
-    <div className="border border-[#1f2937] rounded-lg bg-[#111111] p-4 flex flex-col gap-3 hover:border-[#2d3748] transition-colors">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-xs font-bold font-mono px-2 py-0.5 rounded ${
-              call.direction === 'buy'
-                ? 'bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/30'
-                : 'bg-[#ff4444]/10 text-[#ff4444] border border-[#ff4444]/30'
-            }`}
-          >
-            {call.direction.toUpperCase()}
-          </span>
-          <span className="text-white font-bold font-mono text-sm">{call.symbol}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {current > 0 && (
-            <span className={`text-sm font-bold font-mono ${pnlColor}`}>
-              {p >= 0 ? '+' : ''}{p.toFixed(2)}%
+    <div className="flex flex-col">
+      {/* Card */}
+      <div className={`border rounded-lg bg-[#111111] p-4 flex flex-col gap-3 hover:border-[#2d3748] transition-colors ${isClosed ? 'border-[#1f2937] opacity-70' : 'border-[#1f2937]'}`}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-xs font-bold font-mono px-2 py-0.5 rounded ${
+                call.direction === 'buy'
+                  ? 'bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/30'
+                  : 'bg-[#ff4444]/10 text-[#ff4444] border border-[#ff4444]/30'
+              }`}
+            >
+              {call.direction.toUpperCase()}
             </span>
+            {isClosed && (
+              <span className="text-[9px] font-mono text-[#374151] tracking-widest border border-[#1f2937] px-1.5 py-0.5 rounded">
+                CLOSED
+              </span>
+            )}
+            <span className="text-white font-bold font-mono text-sm">{call.symbol}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isClosed ? (
+              <span className={`text-sm font-bold font-mono ${pnlColor}`}>
+                {p >= 0 ? '+' : ''}{p.toFixed(2)}%
+              </span>
+            ) : (
+              current > 0 && (
+                <span className={`text-sm font-bold font-mono ${pnlColor}`}>
+                  {p >= 0 ? '+' : ''}{p.toFixed(2)}%
+                </span>
+              )
+            )}
+            <span className="text-[#6b7280] text-xs font-mono">
+              {relativeTime(isClosed && call.closedAt ? call.closedAt : call.timestamp)}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-mono text-[#374151] tracking-widest">ENTRY</span>
+            <span className="text-xs font-mono text-[#9ca3af]">{formatPrice(call.entryPrice)}</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-mono text-[#374151] tracking-widest">
+              {isClosed ? 'CLOSED AT' : <>CURRENT{hasLive && <span className="text-[#00ff88]/50 ml-1">●</span>}</>}
+            </span>
+            <span className="text-xs font-mono text-[#9ca3af]">{formatPrice(current)}</span>
+          </div>
+        </div>
+
+        {call.note && (
+          <p className="text-[#6b7280] text-xs font-mono leading-relaxed border-t border-[#1f2937] pt-3">
+            {call.note}
+          </p>
+        )}
+
+        {/* Get Context button */}
+        <div className="flex justify-end border-t border-[#1f2937] pt-2">
+          <button
+            onClick={onGetContext}
+            disabled={contextStatus.status === 'loading'}
+            className="text-[10px] font-mono border border-[#1f2937] text-[#6b7280] hover:text-[#9ca3af] hover:border-[#2d3748] disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1 rounded transition-colors"
+          >
+            {btnLabel}
+          </button>
+        </div>
+      </div>
+
+      {/* Context panel — rendered outside the card border */}
+      {isContextOpen && contextStatus.status !== 'idle' && (
+        <div className="border border-[#1f2937] rounded-lg bg-[#0a0a0a] p-4 mt-1 flex flex-col gap-3">
+          {contextStatus.status === 'loading' && (
+            <p className="text-[#6b7280] text-xs font-mono animate-pulse">Fetching context…</p>
           )}
-          <span className="text-[#6b7280] text-xs font-mono">{relativeTime(call.timestamp)}</span>
+          {contextStatus.status === 'done' && (
+            <p className="text-[#9ca3af] text-xs font-mono leading-relaxed whitespace-pre-wrap">
+              {contextStatus.text}
+            </p>
+          )}
+          {contextStatus.status === 'error' && (
+            <p className="text-[#6b7280] text-xs font-mono italic">Context unavailable.</p>
+          )}
+          <p className="text-[#374151] text-[10px] font-mono border-t border-[#1f2937] pt-2">
+            This surfaces on-chain data only. Not financial advice.
+          </p>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] font-mono text-[#374151] tracking-widest">ENTRY</span>
-          <span className="text-xs font-mono text-[#9ca3af]">{formatPrice(call.entryPrice)}</span>
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] font-mono text-[#374151] tracking-widest">
-            CURRENT{hasLive && <span className="text-[#00ff88]/50 ml-1">●</span>}
-          </span>
-          <span className="text-xs font-mono text-[#9ca3af]">{formatPrice(current)}</span>
-        </div>
-      </div>
-
-      {call.note && (
-        <p className="text-[#6b7280] text-xs font-mono leading-relaxed border-t border-[#1f2937] pt-3">
-          {call.note}
-        </p>
       )}
     </div>
   );
@@ -171,6 +246,43 @@ function FeedContent() {
   const [provider, setProvider] = useState<SignalProvider | null>(null);
   const [calls, setCalls] = useState<SignalCall[]>([]);
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+
+  // Context panel state — one panel open at a time across all cards
+  const [openContextId, setOpenContextId] = useState<string | null>(null);
+  const [contextMap, setContextMap] = useState<Record<string, ContextStatus>>({});
+
+  function handleGetContext(callId: string, tokenMint: string) {
+    // Toggle close if already open
+    if (openContextId === callId) {
+      setOpenContextId(null);
+      return;
+    }
+
+    // Open this panel (implicitly closes any other)
+    setOpenContextId(callId);
+
+    // Skip fetch if already loaded or in-flight
+    const existing = contextMap[callId];
+    if (existing && existing.status !== 'idle') return;
+
+    setContextMap((prev) => ({ ...prev, [callId]: { status: 'loading' } }));
+
+    fetch('/api/agent/context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ providerWallet, tokenMint, subscriberWallet }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json() as Promise<{ analysis: string }>;
+      })
+      .then((data) => {
+        setContextMap((prev) => ({ ...prev, [callId]: { status: 'done', text: data.analysis } }));
+      })
+      .catch(() => {
+        setContextMap((prev) => ({ ...prev, [callId]: { status: 'error' } }));
+      });
+  }
 
   useEffect(() => {
     async function load() {
@@ -307,6 +419,9 @@ function FeedContent() {
                     key={call.id}
                     call={call}
                     livePrice={livePrices[call.mint]}
+                    isContextOpen={openContextId === call.id}
+                    contextStatus={contextMap[call.id] ?? { status: 'idle' }}
+                    onGetContext={() => handleGetContext(call.id, call.mint)}
                   />
                 ))}
               </div>

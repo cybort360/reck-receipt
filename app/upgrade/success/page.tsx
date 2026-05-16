@@ -120,7 +120,7 @@ function SuccessContent() {
         {/* Header row */}
         <div className="flex items-center justify-between px-5 py-4">
           <span className="text-white font-bold tracking-widest text-xs">REKTRECEIPT PRO</span>
-          <span className="text-[#14f195] font-bold tracking-widest text-xs">ACTIVATED</span>
+          <span className="text-[#14f195] font-bold tracking-widest text-xs">SUBSCRIPTION ACTIVE</span>
         </div>
 
         <div className="border-t border-[#1a1a1a] mx-5" />
@@ -149,7 +149,7 @@ function SuccessContent() {
 
         {/* Footer */}
         <div className="px-5 py-4">
-          <span className="text-[#444] text-xs">Activated {activatedDate}</span>
+          <span className="text-[#444] text-xs">Monthly subscription activated · {activatedDate}</span>
         </div>
 
       </div>

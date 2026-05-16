@@ -11,6 +11,8 @@ const schema = z.object({
   ADMIN_SECRET: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
 });
 
 const result = schema.safeParse(process.env);

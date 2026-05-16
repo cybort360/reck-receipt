@@ -3,6 +3,14 @@
     {
       "path": "/api/watch/send",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/signals/autoclose",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/expiry-warning",
+      "schedule": "0 9 * * *"
     }
   ]
 }

@@ -8,6 +8,18 @@ interface AlphaToken {
   symbol: string | null;
   alphaWalletCount: number;
   avgSwaps: number;
+  avgEfficiencyScore?: number;
+  efficiencyLabel?: string;
+}
+
+function efficiencyBadgeClass(label: string): string {
+  if (label === 'Elite' || label === 'Sharp') {
+    return 'text-[#00ff88] border-[#00ff88]/30 bg-[#00ff88]/5';
+  }
+  if (label === 'Average') {
+    return 'text-[#6b7280] border-[#374151] bg-[#1f2937]/50';
+  }
+  return 'text-[#ff4444]/70 border-[#ff4444]/20 bg-[#ff4444]/5'; // Sloppy
 }
 
 const JUPITER_REFERRAL = 'DfQgaajq6LfcLHZuqRC36GoWbH9iqw8hGGnkCXcNbRiH';
@@ -75,6 +87,9 @@ export default function AlphaPage() {
         <p className="text-[#6b7280] text-xs font-mono">
           Tokens being traded by the highest-grade wallets
         </p>
+        <p className="text-[#374151] text-[11px] font-mono mt-0.5">
+          Ranked by execution efficiency relative to trade volume, not raw profitability.
+        </p>
       </div>
 
       {/* Loading */}
@@ -93,10 +108,16 @@ export default function AlphaPage() {
 
       {/* Empty */}
       {!loading && !error && tokens.length === 0 && (
-        <div className="w-full max-w-2xl border border-[#1f2937] rounded-lg bg-[#111111] p-8 text-center">
-          <p className="text-[#6b7280] text-xs font-mono">
-            No alpha data yet — more A-grade wallets need to be audited.
+        <div className="w-full max-w-2xl border border-[#1f2937] rounded-lg bg-[#111111] p-8 flex flex-col items-center gap-4 text-center">
+          <p className="text-[#6b7280] text-xs font-mono leading-relaxed">
+            Not enough data yet. Empty states fill as more wallets get audited.
           </p>
+          <Link
+            href="/"
+            className="border border-[#1f2937] hover:border-[#2d3748] text-[#9ca3af] hover:text-white px-4 py-2 rounded text-xs font-mono transition-colors"
+          >
+            Audit a Wallet
+          </Link>
         </div>
       )}
 
@@ -108,7 +129,7 @@ export default function AlphaPage() {
           <div className="flex items-center gap-4 px-4 pb-1">
             <span className="w-6 text-[#374151] text-xs font-mono shrink-0">#</span>
             <span className="flex-1 text-[#374151] text-xs font-mono">TOKEN</span>
-            <span className="text-[#374151] text-xs font-mono">AVG SWAPS</span>
+            <span className="text-[#374151] text-xs font-mono">WALLETS TRADING</span>
           </div>
 
           {tokens.map((token, i) => (
@@ -122,18 +143,27 @@ export default function AlphaPage() {
                   {i + 1}
                 </span>
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                  <Link
-                    href={`/token/${token.mint}`}
-                    className="nav-link text-white text-sm font-mono font-bold group-hover:text-[#00ff88] transition-colors w-fit"
-                  >
-                    {token.symbol ?? token.mint.slice(0, 8) + '…'}
-                  </Link>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Link
+                      href={`/token/${token.mint}`}
+                      className="nav-link text-white text-sm font-mono font-bold group-hover:text-[#00ff88] transition-colors"
+                    >
+                      {token.symbol ?? token.mint.slice(0, 8) + '…'}
+                    </Link>
+                    {token.efficiencyLabel && (
+                      <span className={`text-[10px] font-mono font-bold border px-1.5 py-0.5 rounded ${efficiencyBadgeClass(token.efficiencyLabel)}`}>
+                        {token.efficiencyLabel}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[#6b7280] text-xs font-mono">
-                    {token.alphaWalletCount} A-grade {token.alphaWalletCount === 1 ? 'wallet' : 'wallets'} trading this
+                    {token.alphaWalletCount === 1
+                      ? '1 high-efficiency wallet trading this'
+                      : `${token.alphaWalletCount} high-efficiency wallets trading this`}
                   </span>
                 </div>
                 <div className="shrink-0 text-right">
-                  <span className="text-[#00ff88] font-bold font-mono text-sm">{token.avgSwaps}x</span>
+                  <span className="text-[#00ff88] font-bold font-mono text-sm">{token.alphaWalletCount}</span>
                 </div>
               </div>
 

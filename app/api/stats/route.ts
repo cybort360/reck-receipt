@@ -23,10 +23,15 @@ export async function GET() {
   const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
   const weekKey = `rektboard:week:${week}`;
 
-  const results = await redis.zrange(weekKey, 0, 0, { rev: true, withScores: true });
+  const [results, walletCount] = await Promise.all([
+    redis.zrange(weekKey, 0, 0, { rev: true, withScores: true }),
+    redis.zcard(KEYS.lbGlobal()),
+  ]);
+
+  const base = { walletCount, feesFoundUsd: 0, rugsDetected: 0 };
 
   if (!results || results.length === 0) {
-    return NextResponse.json({ topLeakageUsd: 0 });
+    return NextResponse.json({ ...base, topLeakageUsd: 0 });
   }
 
   const topWallet = results[0] as string;
@@ -35,15 +40,16 @@ export async function GET() {
   const shareId = await redis.get<string>(KEYS.shareByWallet(topWallet));
 
   if (!shareId) {
-    return NextResponse.json({ topLeakageUsd: 0 });
+    return NextResponse.json({ ...base, topLeakageUsd: 0 });
   }
 
   const data = await redis.get<ReceiptData>(`receipt:${shareId}`);
   if (!data) {
-    return NextResponse.json({ topLeakageUsd: 0 });
+    return NextResponse.json({ ...base, topLeakageUsd: 0 });
   }
 
   return NextResponse.json({
+    ...base,
     topLeakageUsd,
     topGrade: getGrade(topLeakageUsd),
     topMaskedWallet: maskWallet(data.wallet),

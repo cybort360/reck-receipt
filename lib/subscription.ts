@@ -92,6 +92,9 @@ export async function verifyAndGrantSubscription(
     writes.push(redis.set(KEYS.signalProvider(providerWallet), JSON.stringify(provider)));
   }
 
+  // Track in subscription index for expiry scanning
+  writes.push(redis.sadd(KEYS.subscriptionIndex(), `${subscriberWallet}:${providerWallet}`));
+
   await Promise.all(writes);
 
   return { success: true };

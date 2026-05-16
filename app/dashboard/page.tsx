@@ -187,16 +187,26 @@ export default function Dashboard() {
             </button>
           </div>
           {inputError === 'upgrade-prompt' ? (
-            <p className="text-yellow-400 text-xs font-mono">
-              Upgrade to Pro to track up to 10 wallets.{' '}
-              <Link href="/upgrade" className="nav-link">
+            <div className="border border-yellow-900/40 rounded-lg bg-[#111111] px-4 py-3 flex items-center justify-between gap-4">
+              <p className="text-yellow-400 text-xs font-mono">
+                Upgrade to Pro to track unlimited wallets.
+              </p>
+              <Link
+                href="/upgrade"
+                className="shrink-0 border border-yellow-900/60 hover:border-yellow-700 text-yellow-400 hover:text-yellow-300 px-3 py-1 rounded text-xs font-mono transition-colors"
+              >
                 Upgrade
               </Link>
-            </p>
+            </div>
           ) : inputError ? (
             <p className="text-[#ff4444] text-xs font-mono">{inputError}</p>
           ) : null}
-          <p className="text-[#6b7280] text-xs font-mono">{wallets.length}/{isPro ? MAX_WALLETS : 2} wallets</p>
+          <div className="flex items-center gap-2">
+            <p className="text-[#6b7280] text-xs font-mono">{wallets.length}/{isPro ? MAX_WALLETS : 2} wallets</p>
+            {!isPro && (
+              <span className="text-[#374151] text-[10px] font-mono">· Free plan: 2 wallets max</span>
+            )}
+          </div>
         </div>
 
         {/* Aggregate summary */}

@@ -50,3 +50,102 @@ body {
 .nav-link:hover::after {
   width: 100%;
 }
+
+/* ── Hero heading glitch ── */
+@keyframes hero-glitch-before {
+  0%, 3.76%, 100% { opacity: 0; clip-path: none; transform: none; }
+  0.5%  { opacity: 0.8; transform: translate(2px, 0);   clip-path: polygon(0 15%, 100% 15%, 100% 40%, 0 40%); }
+  1.5%  { opacity: 0.8; transform: translate(-2px, 0);  clip-path: polygon(0 55%, 100% 55%, 100% 78%, 0 78%); }
+  2.5%  { opacity: 0.8; transform: translate(2px, -1px); clip-path: polygon(0 0%,  100% 0%,  100% 22%, 0 22%); }
+  3.25% { opacity: 0; }
+}
+
+@keyframes hero-glitch-after {
+  0%, 3.76%, 100% { opacity: 0; clip-path: none; transform: none; }
+  0.75% { opacity: 0.8; transform: translate(-3px, 0);  clip-path: polygon(0 35%, 100% 35%, 100% 58%, 0 58%); }
+  1.75% { opacity: 0.8; transform: translate(3px, 0);   clip-path: polygon(0 65%, 100% 65%, 100% 88%, 0 88%); }
+  2.75% { opacity: 0.8; transform: translate(-2px, 1px); clip-path: polygon(0 8%,  100% 8%,  100% 30%, 0 30%); }
+  3.25% { opacity: 0; }
+}
+
+.hero-heading {
+  position: relative;
+}
+
+.hero-heading::before,
+.hero-heading::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  line-height: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.hero-heading::before {
+  color: rgba(255, 34, 0, 0.8);
+  animation: hero-glitch-before 4s linear infinite;
+}
+
+.hero-heading::after {
+  color: rgba(0, 255, 255, 0.8);
+  animation: hero-glitch-after 4s linear infinite;
+}
+
+/* ── Typewriter cursor ── */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+.typing-cursor {
+  animation: cursor-blink 0.7s step-end infinite;
+}
+
+/* ── Stat ticker slide-in ── */
+@keyframes slide-in-right {
+  from { transform: translateX(40px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.stat-ticker {
+  animation: slide-in-right 0.4s ease-out forwards;
+}
+
+/* ── Feature card entrance ── */
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.feature-card {
+  animation: card-enter 0.4s ease-out both;
+}
+
+/* ── Respect prefers-reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .hero-heading::before,
+  .hero-heading::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .stat-ticker {
+    animation: none;
+  }
+
+  .feature-card {
+    opacity: 1;
+    animation: none;
+  }
+
+  .typing-cursor {
+    animation: none;
+  }
+}

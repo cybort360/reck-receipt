@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
-import { grantPro } from '@/lib/pro';
+import { grantPro, grantSignals } from '@/lib/pro';
+import { sendPaymentConfirmation } from '@/lib/email';
 
 interface PaymentRecord {
   wallet: string;
+  plan?: 'pro' | 'signals';
   createdAt: number;
   status: string;
 }
@@ -31,34 +34,46 @@ export async function GET(req: NextRequest) {
   const heliusApiKey = process.env.HELIUS_API_KEY;
   const usdcMint = process.env.USDC_MINT;
 
-  const res = await fetch(
-    `https://api.helius.xyz/v0/addresses/${treasuryWallet}/transactions?api-key=${heliusApiKey}&limit=10&type=TRANSFER`,
-  );
+  try {
+    const res = await fetch(
+      `https://api.helius.xyz/v0/addresses/${treasuryWallet}/transactions?api-key=${heliusApiKey}&limit=10&type=TRANSFER`,
+    );
 
-  if (!res.ok) {
-    return NextResponse.json({ status: 'pending' });
-  }
+    if (!res.ok) {
+      return NextResponse.json({ status: 'pending' });
+    }
 
-  const txs = await res.json();
+    const txs = await res.json();
 
-  for (const tx of txs) {
-    const transfers = tx.tokenTransfers ?? [];
-    for (const transfer of transfers) {
-      if (
-        transfer.toUserAccount === treasuryWallet &&
-        transfer.mint === usdcMint &&
-        Math.abs(transfer.tokenAmount - amount) < 0.000001
-      ) {
-        await grantPro(record.wallet, tx.signature, 'crypto_usdc');
-        await redis.set(
-          KEYS.payment(String(amount)),
-          JSON.stringify({ ...record, status: 'confirmed' }),
-          { ex: 1800 },
-        );
-        return NextResponse.json({ status: 'confirmed', wallet: record.wallet });
+    for (const tx of txs) {
+      const transfers = tx.tokenTransfers ?? [];
+      for (const transfer of transfers) {
+        if (
+          transfer.toUserAccount === treasuryWallet &&
+          transfer.mint === usdcMint &&
+          Math.abs(transfer.tokenAmount - amount) < 0.000001
+        ) {
+          const plan = record.plan === 'signals' ? 'signals' : 'pro';
+          if (record.plan === 'signals') {
+            await grantSignals(record.wallet);
+          } else {
+            await grantPro(record.wallet, tx.signature, 'crypto_usdc');
+          }
+          await redis.set(
+            KEYS.payment(String(amount)),
+            JSON.stringify({ ...record, status: 'confirmed' }),
+            { ex: 1800 },
+          );
+          const walletShort = `${record.wallet.slice(0, 4)}...${record.wallet.slice(-4)}`;
+          await sendPaymentConfirmation(record.wallet, plan, walletShort, amount);
+          return NextResponse.json({ status: 'confirmed', wallet: record.wallet });
+        }
       }
     }
-  }
 
-  return NextResponse.json({ status: 'pending' });
+    return NextResponse.json({ status: 'pending' });
+  } catch (error) {
+    Sentry.captureException(error);
+    return NextResponse.json({ error: 'Payment verification failed. Try again later.' }, { status: 500 });
+  }
 }

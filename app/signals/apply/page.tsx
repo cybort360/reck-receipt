@@ -4,22 +4,43 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-interface ScoreData {
-  score: number;
-  grade: string;
+interface EligibilityData {
+  efficiencyScore: number | null;
+  swapCount: number;
 }
 
 type CheckState =
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'error'; message: string }
-  | { status: 'ineligible'; score: number }
-  | { status: 'eligible'; score: number; grade: string };
+  | { status: 'done'; data: EligibilityData };
+
+type SolanaWallet = {
+  connect: () => Promise<{ publicKey: { toString: () => string } }>;
+  signMessage: (msg: Uint8Array, enc: string) => Promise<{ signature: Uint8Array }>;
+};
+
+function Check({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`font-mono font-bold text-sm ${ok ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+        {ok ? '✓' : '✗'}
+      </span>
+      <span className={`font-mono text-xs ${ok ? 'text-[#00ff88]/80' : 'text-[#ff4444]/80'}`}>
+        {label}
+      </span>
+    </div>
+  );
+}
 
 export default function ApplyPage() {
   const router = useRouter();
 
-  const [wallet, setWallet] = useState('');
+  const [connectedWallet, setConnectedWallet] = useState('');
+  const [sessionToken, setSessionToken] = useState('');
+  const [signing, setSigning] = useState(false);
+  const [signError, setSignError] = useState<string | null>(null);
+
   const [checkState, setCheckState] = useState<CheckState>({ status: 'idle' });
 
   const [name, setName] = useState('');
@@ -28,14 +49,10 @@ export default function ApplyPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  async function handleCheckEligibility(e: React.FormEvent) {
-    e.preventDefault();
-    if (!wallet.trim()) return;
+  async function checkEligibility(wallet: string) {
     setCheckState({ status: 'checking' });
-    setSubmitError(null);
-
     try {
-      const res = await fetch(`/api/score/${encodeURIComponent(wallet.trim())}`);
+      const res = await fetch(`/api/signals/apply?wallet=${encodeURIComponent(wallet)}`);
       if (res.status === 404) {
         setCheckState({ status: 'error', message: 'No audit found for this wallet. Run an audit first.' });
         return;
@@ -45,32 +62,92 @@ export default function ApplyPage() {
         return;
       }
       if (!res.ok) {
-        setCheckState({ status: 'error', message: 'Failed to fetch score. Try again.' });
+        const data = await res.json().catch(() => ({}));
+        setCheckState({ status: 'error', message: (data as { error?: string }).error ?? 'Failed to fetch eligibility. Try again.' });
         return;
       }
-      const data: ScoreData = await res.json();
-      if (data.score >= 70) {
-        setCheckState({ status: 'eligible', score: data.score, grade: data.grade });
-      } else {
-        setCheckState({ status: 'ineligible', score: data.score });
-      }
+      const data: EligibilityData = await res.json();
+      setCheckState({ status: 'done', data });
     } catch {
       setCheckState({ status: 'error', message: 'Network error. Check your connection and try again.' });
     }
   }
 
+  async function handleSignIn() {
+    setSigning(true);
+    setSignError(null);
+
+    try {
+      const solana = (window as unknown as { solana?: SolanaWallet }).solana;
+      if (!solana) {
+        setSignError('No Solana wallet found. Install Phantom or Backpack.');
+        return;
+      }
+
+      const { publicKey } = await solana.connect();
+      const wallet = publicKey.toString();
+
+      const nonceRes = await fetch('/api/auth/nonce', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet }),
+      });
+      if (!nonceRes.ok) {
+        setSignError('Failed to get sign-in message. Try again.');
+        return;
+      }
+      const { message } = (await nonceRes.json()) as { message: string };
+
+      const sig = await solana.signMessage(new TextEncoder().encode(message), 'utf8');
+      const signatureBase64 = Buffer.from(sig.signature).toString('base64');
+
+      const verifyRes = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet, signature: signatureBase64 }),
+      });
+      if (!verifyRes.ok) {
+        setSignError('Signature verification failed. Try again.');
+        return;
+      }
+      const { token } = (await verifyRes.json()) as { token: string };
+
+      setConnectedWallet(wallet);
+      setSessionToken(token);
+      await checkEligibility(wallet);
+    } catch (err) {
+      if ((err as { code?: number }).code === 4001) {
+        setSignError('Signature rejected. You must sign to continue.');
+      } else {
+        setSignError('Wallet connection failed. Try again.');
+      }
+    } finally {
+      setSigning(false);
+    }
+  }
+
+  function handleDisconnect() {
+    setConnectedWallet('');
+    setSessionToken('');
+    setCheckState({ status: 'idle' });
+    setSubmitError(null);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (checkState.status !== 'eligible') return;
+    if (!isEligible || !sessionToken) return;
     setSubmitting(true);
     setSubmitError(null);
 
     try {
       const res = await fetch('/api/signals/apply', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-token': sessionToken,
+        },
         body: JSON.stringify({
-          wallet: wallet.trim(),
+          wallet: connectedWallet,
           name: name.trim(),
           bio: bio.trim(),
           priceUsdc: parseFloat(priceUsdc),
@@ -91,7 +168,14 @@ export default function ApplyPage() {
     }
   }
 
-  const isEligible = checkState.status === 'eligible';
+  const eligibilityData = checkState.status === 'done' ? checkState.data : null;
+  const efficiencyOk =
+    eligibilityData != null &&
+    eligibilityData.efficiencyScore != null &&
+    eligibilityData.efficiencyScore >= 65;
+  const activityOk = eligibilityData != null && eligibilityData.swapCount >= 20;
+  const isEligible = efficiencyOk && activityOk;
+  const noEfficiencyScore = eligibilityData != null && eligibilityData.efficiencyScore == null;
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white px-4 sm:px-6 py-10 sm:py-16">
@@ -109,61 +193,86 @@ export default function ApplyPage() {
           </Link>
         </div>
 
-        {/* Step 1 — wallet + eligibility check */}
+        {/* Step 1 — sign in + eligibility */}
         <div className="border border-[#1f2937] rounded-lg bg-[#111111] p-4 sm:p-5 flex flex-col gap-4">
           <p className="text-[#6b7280] text-xs font-mono tracking-widest">STEP 1 — CHECK ELIGIBILITY</p>
-          <form onSubmit={handleCheckEligibility} className="flex flex-col gap-3">
-            <input
-              type="text"
-              value={wallet}
-              onChange={(e) => {
-                setWallet(e.target.value);
-                setCheckState({ status: 'idle' });
-                setSubmitError(null);
-              }}
-              placeholder="your wallet address..."
-              aria-label="Wallet address"
-              className="w-full bg-[#0a0a0a] border border-[#1f2937] rounded px-3 py-2 font-mono text-sm text-white placeholder-[#6b7280] focus:outline-none focus:border-[#2d3748]"
-            />
-            <button
-              type="submit"
-              disabled={!wallet.trim() || checkState.status === 'checking'}
-              className="w-full bg-[#00ff88] text-black font-bold py-2 rounded text-sm font-mono hover:bg-[#00e67a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {checkState.status === 'checking' ? 'Checking…' : 'Check Eligibility'}
-            </button>
-          </form>
 
-          {/* Error */}
-          {checkState.status === 'error' && (
-            <div className="border border-[#ff4444]/30 bg-[#ff4444]/5 rounded px-3 py-3">
-              <p className="text-[#ff4444] text-xs font-mono">{checkState.message}</p>
-            </div>
-          )}
-
-          {/* Ineligible */}
-          {checkState.status === 'ineligible' && (
-            <div className="border border-[#ff4444]/30 bg-[#ff4444]/5 rounded px-3 py-3 flex flex-col gap-1">
-              <p className="text-[#ff4444] text-xs font-mono font-bold">Not eligible</p>
-              <p className="text-[#ff4444]/80 text-xs font-mono">
-                Your RektScore of {checkState.score} does not meet the 70 minimum. Keep trading and
-                re-audit to improve your score.
-              </p>
-            </div>
-          )}
-
-          {/* Eligible badge */}
-          {isEligible && (
-            <div className="border border-[#00ff88]/30 bg-[#00ff88]/5 rounded px-3 py-3 flex items-center justify-between">
-              <div>
-                <p className="text-[#00ff88] text-xs font-mono font-bold">Eligible</p>
-                <p className="text-[#00ff88]/70 text-xs font-mono">
-                  RektScore {(checkState as { score: number }).score} · Grade{' '}
-                  {(checkState as { grade: string }).grade}
-                </p>
+          {!connectedWallet ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleSignIn()}
+                disabled={signing}
+                className="w-full bg-[#00ff88] text-black font-bold py-2 rounded text-sm font-mono hover:bg-[#00e67a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {signing ? 'Connecting…' : 'Sign in with Wallet'}
+              </button>
+              {signError && (
+                <div className="border border-[#ff4444]/30 bg-[#ff4444]/5 rounded px-3 py-3">
+                  <p className="text-[#ff4444] text-xs font-mono">{signError}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-[#9ca3af] text-xs font-mono">
+                  {connectedWallet.slice(0, 4)}...{connectedWallet.slice(-4)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDisconnect}
+                  className="text-[#6b7280] text-xs font-mono hover:text-[#9ca3af] transition-colors"
+                >
+                  Disconnect
+                </button>
               </div>
-              <span className="text-2xl font-bold font-mono text-[#00ff88]">✓</span>
-            </div>
+
+              {checkState.status === 'checking' && (
+                <p className="text-[#6b7280] text-xs font-mono">Checking eligibility…</p>
+              )}
+
+              {checkState.status === 'error' && (
+                <div className="border border-[#ff4444]/30 bg-[#ff4444]/5 rounded px-3 py-3">
+                  <p className="text-[#ff4444] text-xs font-mono">{checkState.message}</p>
+                </div>
+              )}
+
+              {checkState.status === 'done' && eligibilityData && (
+                <div
+                  className={`border rounded px-3 py-3 flex flex-col gap-2 ${
+                    isEligible
+                      ? 'border-[#00ff88]/30 bg-[#00ff88]/5'
+                      : 'border-[#ff4444]/30 bg-[#ff4444]/5'
+                  }`}
+                >
+                  {noEfficiencyScore ? (
+                    <p className="text-[#ff4444] text-xs font-mono">
+                      Re-audit your wallet to generate an updated efficiency score.
+                    </p>
+                  ) : (
+                    <>
+                      <Check
+                        ok={efficiencyOk}
+                        label={`Efficiency Score: ${eligibilityData.efficiencyScore}/100 (minimum 65)`}
+                      />
+                      <Check
+                        ok={activityOk}
+                        label={`Trade Activity: ${eligibilityData.swapCount} swaps (minimum 20)`}
+                      />
+                      {!isEligible && (
+                        <p className="text-[#ff4444]/70 text-[11px] font-mono mt-1">
+                          Re-audit your wallet to generate an updated efficiency score.
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {isEligible && (
+                    <p className="text-[#00ff88] text-xs font-mono font-bold mt-1">Eligible ✓</p>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -237,7 +346,7 @@ export default function ApplyPage() {
             </form>
 
             <p className="text-[#374151] text-[11px] font-mono leading-relaxed border-t border-[#1f2937] pt-3">
-              Your on-chain track record is publicly visible to all subscribers. Your RektScore is
+              Your on-chain track record is publicly visible to all subscribers. Your efficiency score is
               re-evaluated on each audit.
             </p>
           </div>

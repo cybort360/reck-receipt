@@ -20,6 +20,7 @@ function PayContent() {
   const wallet = params.get('wallet') ?? '';
   const amount = params.get('amount') ?? '';
   const solanaPayUrl = params.get('url') ?? params.get('solanaPayUrl') ?? '';
+  const plan = params.get('plan') === 'signals' ? 'signals' : 'pro';
 
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copied, setCopied] = useState<'wallet' | 'amount' | null>(null);
@@ -61,7 +62,7 @@ function PayContent() {
           clearInterval(pollRef.current!);
           clearInterval(timerRef.current!);
           setStatus('confirmed');
-          router.push(`/upgrade/success?wallet=${encodeURIComponent(wallet)}&session_id=crypto`);
+          router.push(`/upgrade/success?wallet=${encodeURIComponent(wallet)}&session_id=crypto&plan=${plan}`);
         } else if (data.status === 'expired') {
           clearInterval(pollRef.current!);
           clearInterval(timerRef.current!);
@@ -101,8 +102,12 @@ function PayContent() {
 
       {/* Amount */}
       <div className="text-center">
+        <p className="text-[#555] text-xs font-mono tracking-widest mb-2">
+          {plan === 'signals' ? 'Signals Plan — $14.99/month' : 'Pro Plan — $4.99/month'}
+        </p>
         <p className="text-3xl font-bold font-mono text-white">{amount}</p>
         <p className="text-[#14f195] text-xs font-mono tracking-widest mt-1">USDC</p>
+        <p className="text-[#444] text-[11px] font-mono mt-2">Billed monthly. Cancel anytime by stopping renewal.</p>
       </div>
 
       {/* QR Code */}

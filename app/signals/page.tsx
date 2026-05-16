@@ -5,9 +5,17 @@ import { SignalMarketplace } from '@/components/SignalMarketplace';
 import type { ProviderCard } from '@/components/SignalMarketplace';
 
 export const metadata: Metadata = {
-  title: 'Signal Marketplace — Verified On-Chain Track Records',
-  description:
-    'Follow Solana traders with verified on-chain execution scores. Every signal provider has a public RektScore audit.',
+  title: 'Signal Marketplace',
+  description: 'Follow Solana traders with verified on-chain RektScores. No fake track records.',
+  openGraph: {
+    title: 'Signal Marketplace',
+    description: 'Follow Solana traders with verified on-chain RektScores. No fake track records.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Signal Marketplace',
+    description: 'Follow Solana traders with verified on-chain RektScores. No fake track records.',
+  },
 };
 
 export default async function SignalsPage() {

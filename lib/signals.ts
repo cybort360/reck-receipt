@@ -22,6 +22,10 @@ export interface SignalCall {
   currentPrice: number;
   note: string;
   timestamp: number;
+  status?: 'open' | 'closed';
+  closedAt?: number;
+  closedPrice?: number;
+  finalPnlPercent?: number;
 }
 
 export async function getSignalProvider(wallet: string): Promise<SignalProvider | null> {
@@ -65,4 +69,21 @@ export async function getSignalCalls(
   return raws.map((raw) =>
     typeof raw === 'string' ? (JSON.parse(raw) as SignalCall) : (raw as SignalCall),
   );
+}
+
+export async function updateSignalCall(
+  wallet: string,
+  callId: string,
+  updates: Partial<SignalCall>,
+): Promise<void> {
+  const key = KEYS.signalCalls(wallet);
+  const raws = await redis.lrange(key, 0, -1);
+  const idx = raws.findIndex((raw) => {
+    const c: SignalCall = typeof raw === 'string' ? JSON.parse(raw) : (raw as SignalCall);
+    return c.id === callId;
+  });
+  if (idx === -1) return;
+  const existing: SignalCall =
+    typeof raws[idx] === 'string' ? JSON.parse(raws[idx] as string) : (raws[idx] as SignalCall);
+  await redis.lset(key, idx, JSON.stringify({ ...existing, ...updates }));
 }

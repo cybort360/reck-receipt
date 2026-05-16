@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 
 interface SignalProvider {
@@ -24,7 +24,16 @@ interface SignalCall {
   currentPrice: number;
   note: string;
   timestamp: number;
+  status?: 'open' | 'closed';
+  closedAt?: number;
+  closedPrice?: number;
+  finalPnlPercent?: number;
 }
+
+type SolanaWallet = {
+  connect: () => Promise<{ publicKey: { toString: () => string } }>;
+  signMessage: (msg: Uint8Array, enc: string) => Promise<{ signature: Uint8Array }>;
+};
 
 function pnl(direction: 'buy' | 'sell', entry: number, current: number): number {
   if (entry === 0) return 0;
@@ -53,8 +62,11 @@ function gradeColor(grade: string): string {
 }
 
 export default function DashboardPage() {
-  const [walletInput, setWalletInput] = useState('');
-  const [wallet, setWallet] = useState('');
+  const [connectedWallet, setConnectedWallet] = useState('');
+  const [sessionToken, setSessionToken] = useState('');
+  const [signing, setSigning] = useState(false);
+  const [signError, setSignError] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [provider, setProvider] = useState<SignalProvider | null>(null);
@@ -74,6 +86,10 @@ export default function DashboardPage() {
   const [payoutError, setPayoutError] = useState<string | null>(null);
   const [payoutSuccess, setPayoutSuccess] = useState(false);
 
+  const mintDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fetchingMintPrice, setFetchingMintPrice] = useState(false);
+  const [entryPriceAutoFilled, setEntryPriceAutoFilled] = useState(false);
+
   async function fetchLivePrices(mints: string[]) {
     if (mints.length === 0) return;
     try {
@@ -91,6 +107,29 @@ export default function DashboardPage() {
       setLivePrices((prev) => ({ ...prev, ...updated }));
     } catch {
       // live prices are best-effort
+    }
+  }
+
+  async function fetchMintPrice(mintAddr: string) {
+    setFetchingMintPrice(true);
+    try {
+      const res = await fetch(
+        `https://api.jup.ag/price/v2?ids=${encodeURIComponent(mintAddr)}`,
+      );
+      if (!res.ok) return;
+      const data = await res.json() as { data: Record<string, { price: string } | null> };
+      const priceStr = data.data[mintAddr]?.price;
+      if (priceStr) {
+        const price = parseFloat(priceStr);
+        if (Number.isFinite(price) && price > 0) {
+          setEntryPrice(String(price));
+          setEntryPriceAutoFilled(true);
+        }
+      }
+    } catch {
+      // best-effort, no error state
+    } finally {
+      setFetchingMintPrice(false);
     }
   }
 
@@ -121,7 +160,6 @@ export default function DashboardPage() {
 
       setProvider(provData);
       setCalls(callsData);
-      setWallet(w);
 
       const uniqueMints = [...new Set(callsData.map((c) => c.mint))];
       void fetchLivePrices(uniqueMints);
@@ -137,15 +175,73 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleWalletSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!walletInput.trim()) return;
-    await loadDashboard(walletInput.trim());
+  async function handleSignIn() {
+    setSigning(true);
+    setSignError(null);
+
+    try {
+      const solana = (window as unknown as { solana?: SolanaWallet }).solana;
+      if (!solana) {
+        setSignError('No Solana wallet found. Install Phantom or Backpack.');
+        return;
+      }
+
+      const { publicKey } = await solana.connect();
+      const wallet = publicKey.toString();
+
+      const nonceRes = await fetch('/api/auth/nonce', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet }),
+      });
+      if (!nonceRes.ok) {
+        setSignError('Failed to get sign-in message. Try again.');
+        return;
+      }
+      const { message } = (await nonceRes.json()) as { message: string };
+
+      const sig = await solana.signMessage(new TextEncoder().encode(message), 'utf8');
+      const signatureBase64 = Buffer.from(sig.signature).toString('base64');
+
+      const verifyRes = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet, signature: signatureBase64 }),
+      });
+      if (!verifyRes.ok) {
+        setSignError('Signature verification failed. Try again.');
+        return;
+      }
+      const { token } = (await verifyRes.json()) as { token: string };
+
+      setConnectedWallet(wallet);
+      setSessionToken(token);
+      await loadDashboard(wallet);
+    } catch (err) {
+      if ((err as { code?: number }).code === 4001) {
+        setSignError('Signature rejected. You must sign to continue.');
+      } else {
+        setSignError('Wallet connection failed. Try again.');
+      }
+    } finally {
+      setSigning(false);
+    }
+  }
+
+  function handleDisconnect() {
+    setConnectedWallet('');
+    setSessionToken('');
+    setProvider(null);
+    setCalls([]);
+    setLivePrices({});
+    setLoadError(null);
+    setEarnings(null);
+    setPayoutSuccess(false);
   }
 
   async function handlePostSignal(e: React.FormEvent) {
     e.preventDefault();
-    if (!provider) return;
+    if (!provider || !sessionToken) return;
     setPosting(true);
     setPostError(null);
     setPostSuccess(false);
@@ -153,9 +249,12 @@ export default function DashboardPage() {
     try {
       const res = await fetch('/api/signals/post', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-token': sessionToken,
+        },
         body: JSON.stringify({
-          wallet,
+          wallet: connectedWallet,
           mint: mint.trim(),
           direction,
           entryPrice: parseFloat(entryPrice),
@@ -176,6 +275,7 @@ export default function DashboardPage() {
       setMint('');
       setEntryPrice('');
       setNote('');
+      setEntryPriceAutoFilled(false);
       setPostSuccess(true);
       setTimeout(() => setPostSuccess(false), 3000);
     } catch {
@@ -186,7 +286,7 @@ export default function DashboardPage() {
   }
 
   async function handlePayoutRequest() {
-    if (!wallet || earnings === null || earnings <= 0) return;
+    if (!connectedWallet || earnings === null || earnings <= 0) return;
     setPayoutLoading(true);
     setPayoutError(null);
     setPayoutSuccess(false);
@@ -195,7 +295,7 @@ export default function DashboardPage() {
       const res = await fetch('/api/signals/payout-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ providerWallet: wallet, amount: earnings }),
+        body: JSON.stringify({ providerWallet: connectedWallet, amount: earnings }),
       });
 
       if (!res.ok) {
@@ -234,24 +334,44 @@ export default function DashboardPage() {
         {/* Wallet auth */}
         {!provider && (
           <div className="border border-[#1f2937] rounded-lg bg-[#111111] p-4 sm:p-5 flex flex-col gap-4">
-            <p className="text-[#6b7280] text-xs font-mono tracking-widest">ENTER YOUR WALLET</p>
-            <form onSubmit={handleWalletSubmit} className="flex flex-col gap-3">
-              <input
-                type="text"
-                value={walletInput}
-                onChange={(e) => setWalletInput(e.target.value)}
-                placeholder="wallet address..."
-                aria-label="Wallet address"
-                className="w-full bg-[#0a0a0a] border border-[#1f2937] rounded px-3 py-2 font-mono text-sm text-white placeholder-[#6b7280] focus:outline-none focus:border-[#2d3748]"
-              />
-              <button
-                type="submit"
-                disabled={!walletInput.trim() || loading}
-                className="w-full bg-[#00ff88] text-black font-bold py-2 rounded text-sm font-mono hover:bg-[#00e67a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading ? 'Loading…' : 'View Dashboard'}
-              </button>
-            </form>
+            <p className="text-[#6b7280] text-xs font-mono tracking-widest">SIGN IN</p>
+
+            {!connectedWallet ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleSignIn()}
+                  disabled={signing || loading}
+                  className="w-full bg-[#00ff88] text-black font-bold py-2 rounded text-sm font-mono hover:bg-[#00e67a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {signing ? 'Connecting…' : loading ? 'Loading…' : 'Sign in with Wallet'}
+                </button>
+                {signError && (
+                  <div className="border border-[#ff4444]/30 bg-[#ff4444]/5 rounded px-3 py-3">
+                    <p className="text-[#ff4444] text-xs font-mono">{signError}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#9ca3af] text-xs font-mono">
+                    {connectedWallet.slice(0, 4)}...{connectedWallet.slice(-4)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleDisconnect}
+                    className="text-[#6b7280] text-xs font-mono hover:text-[#9ca3af] transition-colors"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+                {loading && (
+                  <p className="text-[#6b7280] text-xs font-mono">Loading dashboard…</p>
+                )}
+              </>
+            )}
+
             {loadError && (
               <div className="border border-[#ff4444]/30 bg-[#ff4444]/5 rounded px-3 py-3 flex flex-col gap-1">
                 <p className="text-[#ff4444] text-xs font-mono">{loadError}</p>
@@ -277,11 +397,18 @@ export default function DashboardPage() {
                     <p className="text-[#9ca3af] text-xs font-mono mt-1 leading-relaxed">{provider.bio}</p>
                   )}
                 </div>
-                <div className="shrink-0 text-right">
+                <div className="shrink-0 text-right flex flex-col items-end gap-1">
                   <span className={`text-2xl font-bold font-mono ${gradeColor(provider.grade)}`}>
                     {provider.grade}
                   </span>
                   <p className="text-[#6b7280] text-[10px] font-mono">Score {provider.rektScore}</p>
+                  <button
+                    type="button"
+                    onClick={handleDisconnect}
+                    className="text-[#6b7280] text-[10px] font-mono hover:text-[#9ca3af] transition-colors mt-1"
+                  >
+                    Disconnect
+                  </button>
                 </div>
               </div>
 
@@ -311,7 +438,22 @@ export default function DashboardPage() {
                   <input
                     type="text"
                     value={mint}
-                    onChange={(e) => setMint(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMint(val);
+                      setEntryPriceAutoFilled(false);
+                      if (mintDebounceRef.current) clearTimeout(mintDebounceRef.current);
+                      if (val.trim()) {
+                        mintDebounceRef.current = setTimeout(
+                          () => void fetchMintPrice(val.trim()),
+                          500,
+                        );
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (mintDebounceRef.current) clearTimeout(mintDebounceRef.current);
+                      if (e.target.value.trim()) void fetchMintPrice(e.target.value.trim());
+                    }}
                     placeholder="token mint address..."
                     required
                     className="w-full bg-[#0a0a0a] border border-[#1f2937] rounded px-3 py-2 font-mono text-sm text-white placeholder-[#6b7280] focus:outline-none focus:border-[#2d3748]"
@@ -347,11 +489,24 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[#6b7280] text-xs font-mono">Entry Price (USDC)</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[#6b7280] text-xs font-mono">Entry Price (USDC)</label>
+                    {fetchingMintPrice && (
+                      <span className="text-[#374151] text-[11px] font-mono">fetching…</span>
+                    )}
+                    {entryPriceAutoFilled && !fetchingMintPrice && (
+                      <span className="text-[#374151] text-[11px] font-mono">
+                        Auto-filled from Jupiter. Edit if needed.
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     value={entryPrice}
-                    onChange={(e) => setEntryPrice(e.target.value)}
+                    onChange={(e) => {
+                      setEntryPrice(e.target.value);
+                      setEntryPriceAutoFilled(false);
+                    }}
                     placeholder="0.00"
                     min={0}
                     step="any"
@@ -449,14 +604,31 @@ export default function DashboardPage() {
                     </thead>
                     <tbody>
                       {calls.map((call) => {
-                        const current = livePrices[call.mint] ?? call.currentPrice;
-                        const p = pnl(call.direction, call.entryPrice, current);
-                        const pnlColor = p >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]';
+                        const isClosed = call.status === 'closed';
+                        const current = isClosed
+                          ? (call.closedPrice ?? call.currentPrice)
+                          : (livePrices[call.mint] ?? call.currentPrice);
+                        const p = isClosed
+                          ? (call.finalPnlPercent ?? 0)
+                          : pnl(call.direction, call.entryPrice, current);
+                        const pnlColor = isClosed
+                          ? 'text-white'
+                          : p >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]';
                         return (
-                          <tr key={call.id} className="border-b border-[#1f2937] hover:bg-[#161f2e] transition-colors">
+                          <tr
+                            key={call.id}
+                            className="border-b border-[#1f2937] hover:bg-[#161f2e] transition-colors"
+                          >
                             <td className="py-2 pr-3 text-white">{call.symbol}</td>
-                            <td className={`py-2 pr-3 font-bold ${call.direction === 'buy' ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                            <td
+                              className={`py-2 pr-3 font-bold ${call.direction === 'buy' ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}
+                            >
                               {call.direction.toUpperCase()}
+                              {isClosed && (
+                                <span className="ml-1.5 text-[#374151] font-normal text-[9px] tracking-widest">
+                                  CLOSED
+                                </span>
+                              )}
                             </td>
                             <td className="py-2 pr-3 text-right text-[#9ca3af]">
                               ${call.entryPrice < 0.01
@@ -464,17 +636,23 @@ export default function DashboardPage() {
                                 : call.entryPrice.toFixed(4)}
                             </td>
                             <td className="py-2 pr-3 text-right text-[#9ca3af]">
-                              {current > 0
-                                ? `$${current < 0.01 ? current.toFixed(6) : current.toFixed(4)}`
-                                : '—'}
+                              {isClosed
+                                ? (current > 0
+                                    ? `$${current < 0.01 ? current.toFixed(6) : current.toFixed(4)}`
+                                    : '—')
+                                : (current > 0
+                                    ? `$${current < 0.01 ? current.toFixed(6) : current.toFixed(4)}`
+                                    : '—')}
                             </td>
                             <td className={`py-2 pr-3 text-right font-bold ${pnlColor}`}>
-                              {current > 0
+                              {isClosed
                                 ? `${p >= 0 ? '+' : ''}${p.toFixed(2)}%`
-                                : '—'}
+                                : (current > 0
+                                    ? `${p >= 0 ? '+' : ''}${p.toFixed(2)}%`
+                                    : '—')}
                             </td>
                             <td className="py-2 text-right text-[#6b7280]">
-                              {relativeTime(call.timestamp)}
+                              {relativeTime(isClosed && call.closedAt ? call.closedAt : call.timestamp)}
                             </td>
                           </tr>
                         );
