@@ -10,7 +10,8 @@
     "test": "jest",
     "generate-og": "node scripts/generate-og.mjs",
     "seed": "npx ts-node scripts/seed.ts",
-    "cleanup-providers": "npx ts-node scripts/cleanup-test-providers.ts"
+    "cleanup-providers": "npx ts-node scripts/cleanup-test-providers.ts",
+    "backfill-audited-wallets": "npx ts-node scripts/backfill-audited-wallets.ts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.53.1",
