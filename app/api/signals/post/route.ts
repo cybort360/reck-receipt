@@ -5,6 +5,7 @@ import { postSignalCall, getSignalProvider, getSignalCalls, updateSignalCall } f
 import type { SignalCall } from '@/lib/signals';
 import { generalRatelimit } from '@/lib/ratelimit';
 import { getSession } from '@/lib/auth';
+import { notifyNewSignal } from '@/lib/telegram';
 
 interface JupPriceResponse {
   data: Record<string, { id: string; type: string; price: string } | null>;
@@ -121,6 +122,12 @@ export async function POST(req: NextRequest) {
     };
 
     await postSignalCall(wallet.trim(), call);
+
+    try {
+      await notifyNewSignal(wallet.trim(), provider.name, call.symbol, call.direction, call.note);
+    } catch {
+      // Telegram failure must never break signal posting
+    }
 
     return NextResponse.json({ success: true, call, closedBuyId });
   } catch (error) {

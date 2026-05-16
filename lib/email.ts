@@ -1,25 +1,29 @@
 import { Resend } from 'resend';
+import { redis } from './redis';
+import { KEYS } from './redis/keys';
 
 export const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM = 'noreply@rektreceipt.xyz';
 
-// TODO: Email collection needs to be added to the payment flow before this
-// can send real emails. Currently we only have the wallet address at confirmation
-// time — no email address is collected during checkout.
 export async function sendPaymentConfirmation(
-  to: string,
+  wallet: string,
   plan: string,
   walletShort: string,
   amount: number,
 ): Promise<void> {
-  console.log(`[EMAIL SKIP] would send to: ${to} — plan: ${plan}, wallet: ${walletShort}, amount: $${amount} USDC`);
-  return;
+  const email = await redis.get<string>(KEYS.userEmail(wallet));
 
-  // eslint-disable-next-line no-unreachable
+  if (!email) {
+    // TODO: email collection needs to be added to the payment flow before this
+    // can send real emails — store email at checkout time via /api/user/email.
+    console.log(`[EMAIL SKIP] no email on file for ${walletShort} — plan: ${plan}, amount: $${amount} USDC`);
+    return;
+  }
+
   await resend.emails.send({
     from: FROM,
-    to,
+    to: email,
     subject: `RektReceipt — ${plan} plan activated`,
     text: [
       `Your ${plan} subscription is now active.`,

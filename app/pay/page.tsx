@@ -26,6 +26,7 @@ function PayContent() {
   const [copied, setCopied] = useState<'wallet' | 'amount' | null>(null);
   const [timeLeft, setTimeLeft] = useState(TOTAL_SECONDS);
   const [status, setStatus] = useState<'pending' | 'confirmed' | 'expired'>('pending');
+  const [email, setEmail] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -62,6 +63,13 @@ function PayContent() {
           clearInterval(pollRef.current!);
           clearInterval(timerRef.current!);
           setStatus('confirmed');
+          if (email.trim()) {
+            fetch('/api/user/email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ wallet, email: email.trim() }),
+            }).catch(() => null);
+          }
           router.push(`/upgrade/success?wallet=${encodeURIComponent(wallet)}&session_id=crypto&plan=${plan}`);
         } else if (data.status === 'expired') {
           clearInterval(pollRef.current!);
@@ -109,6 +117,15 @@ function PayContent() {
         <p className="text-[#14f195] text-xs font-mono tracking-widest mt-1">USDC</p>
         <p className="text-[#444] text-[11px] font-mono mt-2">Billed monthly. Cancel anytime by stopping renewal.</p>
       </div>
+
+      {/* Optional email for receipt */}
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email for receipt (optional)"
+        className="w-full bg-[#111] border border-[#1a1a1a] rounded-lg px-3 py-2 font-mono text-sm text-white placeholder-[#444] focus:outline-none focus:border-[#2a2a2a]"
+      />
 
       {/* QR Code */}
       {qrDataUrl ? (

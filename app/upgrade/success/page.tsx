@@ -161,19 +161,31 @@ function SuccessContent() {
 
       {/* Buttons */}
       {granted && (
-        <div className="flex items-center gap-3">
-          <Link
-            href={wallet ? `/?wallet=${encodeURIComponent(wallet)}` : '/'}
-            className="bg-[#14f195] text-black font-bold px-6 py-2 rounded-full hover:bg-[#10d980] transition-colors text-sm font-mono"
-          >
-            Run full audit
-          </Link>
-          <Link
-            href="/dashboard"
-            className="border border-[#444] text-white px-6 py-2 rounded-full hover:border-[#888] transition-colors text-sm font-mono"
-          >
-            Dashboard
-          </Link>
+        <div className="flex flex-col items-center gap-3 w-full max-w-sm">
+          <div className="flex items-center gap-3">
+            <Link
+              href={wallet ? `/?wallet=${encodeURIComponent(wallet)}` : '/'}
+              className="bg-[#14f195] text-black font-bold px-6 py-2 rounded-full hover:bg-[#10d980] transition-colors text-sm font-mono"
+            >
+              Run full audit
+            </Link>
+            <Link
+              href="/dashboard"
+              className="border border-[#444] text-white px-6 py-2 rounded-full hover:border-[#888] transition-colors text-sm font-mono"
+            >
+              Dashboard
+            </Link>
+          </div>
+          {wallet && (
+            <a
+              href={`https://t.me/RektReceiptBot?start=${encodeURIComponent(wallet)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full text-center border border-[#1f2937] text-[#9ca3af] px-6 py-2 rounded-full hover:border-[#374151] hover:text-white transition-colors text-sm font-mono"
+            >
+              Enable Telegram Alerts
+            </a>
+          )}
         </div>
       )}
 

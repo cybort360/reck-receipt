@@ -28,5 +28,8 @@ export const KEYS = {
   signalPayout: (wallet: string) => `rr:v1:signal:payout:${wallet}`,
   authNonce: (wallet: string) => `rr:v1:auth:nonce:${wallet}`,
   authSession: (token: string) => `rr:v1:auth:session:${token}`,
+  adminToken: (token: string) => `rr:v1:admin:token:${token}`,
+  userEmail: (wallet: string) => `rr:v1:user:email:${wallet}`,
+  telegramChatId: (wallet: string) => `rr:v1:user:telegram:${wallet}`,
   subscriptionIndex: () => `rr:v1:idx:subscriptions`,
 };
