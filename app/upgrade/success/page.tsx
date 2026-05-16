@@ -186,6 +186,12 @@ function SuccessContent() {
               Enable Telegram Alerts
             </a>
           )}
+          <Link
+            href={wallet ? `/referral?wallet=${encodeURIComponent(wallet)}` : '/referral'}
+            className="w-full text-center border border-[#1f2937] text-[#9ca3af] px-6 py-2 rounded-full hover:border-[#374151] hover:text-white transition-colors text-sm font-mono"
+          >
+            Earn 50% — share your referral link
+          </Link>
         </div>
       )}
 

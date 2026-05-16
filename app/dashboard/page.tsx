@@ -301,6 +301,18 @@ export default function Dashboard() {
           })}
         </div>
 
+        {/* Referral */}
+        <Link
+          href="/referral"
+          className="border border-[#1f2937] rounded-lg bg-[#111111] px-5 py-4 flex items-center justify-between hover:border-[#2d3748] transition-colors group"
+        >
+          <div className="flex flex-col gap-0.5">
+            <span className="text-white text-xs font-mono font-bold">Earn 50% per referral</span>
+            <span className="text-[#6b7280] text-[11px] font-mono">Share your link and earn on every subscription.</span>
+          </div>
+          <span className="text-[#00ff88] text-xs font-mono group-hover:translate-x-0.5 transition-transform">→</span>
+        </Link>
+
       </div>
     </main>
   );
