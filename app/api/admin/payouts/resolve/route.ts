@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
+import { getRefStats } from '@/lib/referral';
 import type { PayoutRequest } from '../route';
 
 function isAuthorized(req: NextRequest): boolean {
@@ -28,10 +29,25 @@ export async function POST(req: NextRequest) {
   const payout: PayoutRequest =
     typeof raw === 'string' ? JSON.parse(raw) : (raw as PayoutRequest);
 
-  await Promise.all([
+  const resets: Promise<unknown>[] = [
     redis.set(key, JSON.stringify({ ...payout, status: 'paid', paidAt: Date.now() })),
-    redis.set(KEYS.providerEarnings(wallet), '0'),
-  ]);
+  ];
+
+  if (payout.source === 'referral') {
+    const code = await redis.get<string>(KEYS.refWallet(wallet));
+    if (code) {
+      const record = await getRefStats(code);
+      if (record) {
+        resets.push(
+          redis.set(KEYS.refCode(code), JSON.stringify({ ...record, earningsUsd: 0 })),
+        );
+      }
+    }
+  } else {
+    resets.push(redis.set(KEYS.providerEarnings(wallet), '0'));
+  }
+
+  await Promise.all(resets);
 
   return NextResponse.json({ success: true });
 }

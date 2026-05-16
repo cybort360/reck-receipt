@@ -43,6 +43,12 @@ export async function trackClick(code: string): Promise<void> {
   await redis.set(KEYS.refCode(code), JSON.stringify(record));
 }
 
+export async function resetEarnings(code: string): Promise<void> {
+  const record = await getRefStats(code);
+  if (!record) return;
+  await redis.set(KEYS.refCode(code), JSON.stringify({ ...record, earningsUsd: 0 }));
+}
+
 export async function trackConversion(code: string, amountUsd: number, payingWallet: string): Promise<void> {
   const record = await getRefStats(code);
   if (!record) return;
