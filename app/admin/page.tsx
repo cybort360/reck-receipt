@@ -78,7 +78,9 @@ export default function AdminPage() {
       setProviders(d.providers ?? []);
     }
     if (statsRes.ok) {
-      setStats(await statsRes.json());
+      const statsData = await statsRes.json();
+      console.log('admin stats response:', statsData);
+      setStats(statsData);
     }
   }, [adminFetch]);
 

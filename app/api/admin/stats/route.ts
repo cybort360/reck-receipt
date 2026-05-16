@@ -12,9 +12,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const [wallets, providers, payoutKeys] = await Promise.all([
+  const [walletsAudited, totalProviders, activeSubscriptions, payoutKeys] = await Promise.all([
     redis.zcard(KEYS.auditedWallets()),
     redis.zcard(KEYS.signalIndex()),
+    redis.scard(KEYS.subscriptionIndex()),
     redis.keys('rr:v1:signal:payout:*'),
   ]);
 
@@ -30,5 +31,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ wallets, providers, pendingPayouts });
+  return NextResponse.json({ walletsAudited, totalProviders, activeSubscriptions, pendingPayouts });
 }
