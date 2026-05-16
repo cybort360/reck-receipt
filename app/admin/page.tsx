@@ -7,6 +7,7 @@ interface PayoutRequest {
   amount: number;
   requestedAt: number;
   status: 'pending' | 'paid';
+  source?: 'referral' | 'signal';
 }
 
 interface SignalProvider {
@@ -212,9 +213,14 @@ export default function AdminPage() {
                   className="flex items-center justify-between border border-[#1f2937] rounded px-3 py-3 gap-4"
                 >
                   <div className="flex flex-col gap-0.5 min-w-0">
-                    <span className="text-white text-xs font-mono truncate">
-                      {p.wallet.slice(0, 8)}…{p.wallet.slice(-6)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white text-xs font-mono truncate">
+                        {p.wallet.slice(0, 8)}…{p.wallet.slice(-6)}
+                      </span>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${p.source === 'referral' ? 'border-[#6366f1]/40 text-[#6366f1]' : 'border-[#00ff88]/40 text-[#00ff88]'}`}>
+                        {p.source === 'referral' ? 'referral' : 'signal'}
+                      </span>
+                    </div>
                     <span className="text-[#6b7280] text-[11px] font-mono">
                       ${p.amount.toFixed(2)} USDC · {new Date(p.requestedAt).toLocaleDateString()}
                     </span>
