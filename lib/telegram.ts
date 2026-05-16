@@ -3,13 +3,23 @@ import { KEYS } from './redis/keys';
 
 export async function sendTelegramMessage(chatId: string, message: string): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token || !chatId) return;
+  if (!token || !chatId) {
+    console.log('[TG] sendTelegramMessage: skipped — token or chatId missing', { hasToken: !!token, chatId });
+    return;
+  }
 
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' }),
   });
+
+  const responseBody = await res.json().catch(() => null);
+  console.log('[TG] sendTelegramMessage response:', JSON.stringify(responseBody, null, 2));
+
+  if (!res.ok) {
+    console.error('[TG] sendTelegramMessage failed — HTTP', res.status, responseBody);
+  }
 }
 
 export async function storeTelegramChatId(wallet: string, chatId: string): Promise<void> {
