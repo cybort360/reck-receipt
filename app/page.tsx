@@ -473,6 +473,7 @@ export default function Home() {
       }
       const data: AuditResult = await res.json();
       setResult(data);
+      localStorage.setItem('rektreceipt-last-wallet', wallet.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch. Check the wallet address.');
     } finally {
