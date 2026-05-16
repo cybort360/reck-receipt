@@ -3,6 +3,7 @@ import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
 import { verifyAndGrantSubscription } from '@/lib/subscription';
 import { sendPaymentConfirmation } from '@/lib/email';
+import { trackConversion } from '@/lib/referral';
 
 interface SubscriptionPaymentSession {
   subscriberWallet: string;
@@ -53,6 +54,8 @@ export async function GET(req: NextRequest) {
         await verifyAndGrantSubscription(amountParam);
         const walletShort = `${session.subscriberWallet.slice(0, 4)}...${session.subscriberWallet.slice(-4)}`;
         await sendPaymentConfirmation(session.subscriberWallet, 'signals', walletShort, session.priceUsdc);
+        const refCode = req.cookies.get('rektreceipt-ref')?.value;
+        if (refCode) await trackConversion(refCode, session.priceUsdc, session.subscriberWallet);
         return NextResponse.json({ status: 'confirmed' });
       }
     }

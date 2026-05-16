@@ -43,9 +43,10 @@ export async function trackClick(code: string): Promise<void> {
   await redis.set(KEYS.refCode(code), JSON.stringify(record));
 }
 
-export async function trackConversion(code: string, amountUsd: number): Promise<void> {
+export async function trackConversion(code: string, amountUsd: number, payingWallet: string): Promise<void> {
   const record = await getRefStats(code);
   if (!record) return;
+  if (record.wallet === payingWallet) return; // block self-referral
   record.conversions += 1;
   record.earningsUsd += amountUsd * 0.5;
   await redis.set(KEYS.refCode(code), JSON.stringify(record));

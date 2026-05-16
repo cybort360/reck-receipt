@@ -4,6 +4,7 @@ import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
 import { grantPro, grantSignals } from '@/lib/pro';
 import { sendPaymentConfirmation } from '@/lib/email';
+import { trackConversion } from '@/lib/referral';
 
 interface PaymentRecord {
   wallet: string;
@@ -66,6 +67,8 @@ export async function GET(req: NextRequest) {
           );
           const walletShort = `${record.wallet.slice(0, 4)}...${record.wallet.slice(-4)}`;
           await sendPaymentConfirmation(record.wallet, plan, walletShort, amount);
+          const refCode = req.cookies.get('rektreceipt-ref')?.value;
+          if (refCode) await trackConversion(refCode, amount, record.wallet);
           return NextResponse.json({ status: 'confirmed', wallet: record.wallet });
         }
       }
