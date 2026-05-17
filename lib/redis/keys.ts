@@ -32,4 +32,5 @@ export const KEYS = {
   userEmail: (wallet: string) => `rr:v1:user:email:${wallet}`,
   telegramChatId: (wallet: string) => `rr:v1:user:telegram:${wallet}`,
   subscriptionIndex: () => `rr:v1:idx:subscriptions`,
+  alertSent: (wallet: string, mint: string) => `rr:v1:alert:sent:${wallet}:${mint}`,
 };

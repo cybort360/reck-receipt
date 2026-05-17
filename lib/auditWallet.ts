@@ -150,6 +150,8 @@ export async function auditWallet(wallet: string) {
       fee: tx.fee,
       jitoTipLamports: tx.jitoTipLamports,
       hasJitoTip: tx.hasJitoTip,
+      slippagePct: tx.slippagePct,
+      likelySandwiched: tx.likelySandwiched,
       legs: tx.legs,
     })),
   };

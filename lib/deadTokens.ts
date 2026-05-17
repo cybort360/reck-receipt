@@ -68,11 +68,14 @@ export async function getDeadTokens(wallet: string): Promise<DeadToken[]> {
   const mints = nonZero.map((t) => t.mint);
 
   const [priceRes, tokenMetadata] = await Promise.all([
-    fetch(`https://api.jup.ag/price/v2?ids=${mints.join(',')}`),
+    fetch(`https://api.jup.ag/price/v2?ids=${mints.join(',')}`, {
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => null),
     getTokenMetadata(mints),
   ]);
 
-  const priceData: JupiterPriceResponse = priceRes.ok ? await priceRes.json() : { data: {} };
+  const priceData: JupiterPriceResponse =
+    priceRes?.ok ? await priceRes.json() : { data: {} };
 
   const dead: DeadToken[] = nonZero
     .map((t) => {
