@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/rug-alert",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/generate-wrapped",
+      "schedule": "0 0 1 * *"
     }
   ]
 }
