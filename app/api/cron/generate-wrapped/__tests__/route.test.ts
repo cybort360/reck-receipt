@@ -74,6 +74,14 @@ describe('POST /api/cron/generate-wrapped', () => {
     expect(getTelegramChatId).toHaveBeenCalledWith('wallet1');
     expect(getTelegramChatId).toHaveBeenCalledWith('wallet2');
     expect(sendTelegramMessage).toHaveBeenCalledTimes(2);
+    expect(sendTelegramMessage).toHaveBeenCalledWith(
+      'chat123',
+      expect.stringContaining('rektreceipt.xyz/wrapped/wallet1/'),
+    );
+    expect(sendTelegramMessage).toHaveBeenCalledWith(
+      'chat123',
+      expect.stringContaining('rektreceipt.xyz/wrapped/wallet2/'),
+    );
   });
 
   it('continues processing remaining wallets if one wallet generateWrapped throws', async () => {
