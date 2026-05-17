@@ -1,6 +1,7 @@
 import { redis } from '@/lib/redis';
 import { KEYS } from '@/lib/redis/keys';
 import { getSolPriceAtTimestamp } from '@/lib/price';
+import { getProStatus } from '@/lib/pro';
 import Link from 'next/link';
 import { TimelineClient } from './TimelineClient';
 import type { TimelineEntry, DeadTokenEntry } from './TimelineClient';
@@ -72,6 +73,31 @@ export default async function TimelinePage({ params }: { params: Promise<{ walle
           className="text-[#00ff88] text-sm hover:underline transition-colors"
         >
           Run the audit first →
+        </Link>
+      </main>
+    );
+  }
+
+  const { isPro } = await getProStatus(wallet);
+  if (!isPro) {
+    return (
+      <main className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center gap-4 p-4 font-mono">
+        <p className="text-[#00ff88] text-[10px] tracking-widest">DEGEN TIME MACHINE</p>
+        <p className="text-white text-sm">This is a Pro feature.</p>
+        <p className="text-[#6b7280] text-xs text-center max-w-xs">
+          Upgrade to Pro to see your full trade timeline, running leakage counter, and dead bag breakdown.
+        </p>
+        <Link
+          href="/upgrade"
+          className="mt-2 bg-[#00ff88] text-black font-bold px-5 py-2 rounded text-sm hover:bg-[#00e67a] transition-colors"
+        >
+          Upgrade to Pro
+        </Link>
+        <Link
+          href={`/?wallet=${wallet}`}
+          className="text-[#374151] text-xs hover:text-[#6b7280] transition-colors"
+        >
+          ← back to audit
         </Link>
       </main>
     );
