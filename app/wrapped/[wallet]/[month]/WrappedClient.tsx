@@ -391,11 +391,9 @@ function SlidePersonality({
 function SlideCommunity({
   active,
   topPct,
-  communityPercentile,
 }: {
   active: boolean;
   topPct: number | null;
-  communityPercentile: number | null;
 }) {
   return (
     <SlideBase
@@ -421,7 +419,7 @@ function SlideCommunity({
           </div>
           <Divider color="#ffffff44" />
           <p style={{ color: '#6b7280', fontSize: 11, textAlign: 'center' }}>
-            more rekt than {communityPercentile}% of all audited wallets
+            more rekt than {100 - topPct}% of all audited wallets
           </p>
         </>
       ) : (
@@ -549,6 +547,13 @@ export function WrappedClient({ data }: { data: WrappedData }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [goTo]);
 
+  // Auto-advance after 4s to match the fillBar animation
+  useEffect(() => {
+    if (current >= TOTAL_SLIDES - 1) return;
+    const id = setTimeout(() => goTo(current + 1), 4000);
+    return () => clearTimeout(id);
+  }, [current, goTo]);
+
   const share = useCallback(() => {
     const yyyyMm = `${data.year}-${String(data.month).padStart(2, '0')}`;
     const url = `${window.location.origin}/wrapped/${data.wallet}/${yyyyMm}`;
@@ -562,8 +567,9 @@ export function WrappedClient({ data }: { data: WrappedData }) {
   const yyyyMm = `${data.year}-${String(data.month).padStart(2, '0')}`;
   const shortWallet = `${data.wallet.slice(0, 4)}…${data.wallet.slice(-4)}`;
   // communityPercentile = % of wallets with lower leakage (0=least rekt, 100=most rekt)
-  // topPct = "you are in the TOP X% most rekt wallets"
-  const topPct = data.communityPercentile !== null ? 100 - data.communityPercentile : null;
+  // topPct = "you are in the TOP X% most rekt wallets" — floored at 1 to avoid "TOP 0%"
+  const topPct =
+    data.communityPercentile !== null ? Math.max(1, 100 - data.communityPercentile) : null;
 
   return (
     <div
@@ -629,11 +635,7 @@ export function WrappedClient({ data }: { data: WrappedData }) {
       <SlideWorstTrade active={current === 3} worstTrade={data.worstTrade} />
       <SlideDeadBags active={current === 4} deadTokens={data.deadTokens} />
       <SlidePersonality active={current === 5} personality={data.personality} />
-      <SlideCommunity
-        active={current === 6}
-        topPct={topPct}
-        communityPercentile={data.communityPercentile}
-      />
+      <SlideCommunity active={current === 6} topPct={topPct} />
       <SlideSwaps active={current === 7} swapCount={data.swapCount} />
       <SlideShare
         active={current === 8}
