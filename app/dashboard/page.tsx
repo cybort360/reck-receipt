@@ -271,12 +271,22 @@ export default function Dashboard() {
                       >
                         {truncateWallet(address)}
                       </Link>
-                      <button
-                        onClick={() => handleRemove(address)}
-                        className="text-[#6b7280] hover:text-[#ff4444] text-xs font-mono transition-colors"
-                      >
-                        remove
-                      </button>
+                      <div className="flex items-center gap-3">
+                        {isPro && (
+                          <Link
+                            href={`/wrapped/${encodeURIComponent(address)}`}
+                            className="text-[#00ff88] hover:text-[#00e67a] text-xs font-mono transition-colors"
+                          >
+                            Wrapped →
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => handleRemove(address)}
+                          className="text-[#6b7280] hover:text-[#ff4444] text-xs font-mono transition-colors"
+                        >
+                          remove
+                        </button>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col gap-1">

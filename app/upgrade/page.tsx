@@ -17,6 +17,7 @@ const PRO_FEATURES = [
   'Alpha Feed',
   'Rug Radar',
   'Token Graveyard',
+  'Rekt Wrapped (monthly recap)',
 ];
 
 const SIGNALS_FEATURES = [
