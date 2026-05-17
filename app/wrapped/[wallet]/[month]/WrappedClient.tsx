@@ -615,7 +615,7 @@ export function WrappedClient({ data }: { data: WrappedData }) {
               style={{
                 height: '100%',
                 background: '#fff',
-                width: i < current ? '100%' : undefined,
+                width: i < current ? '100%' : i > current ? '0%' : undefined,
                 animation: i === current ? 'fillBar 4s linear forwards' : undefined,
               }}
             />
