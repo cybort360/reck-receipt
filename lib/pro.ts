@@ -23,15 +23,24 @@ export async function getProStatus(wallet: string): Promise<ProStatus> {
 }
 
 export async function grantPro(wallet: string, paymentRef: string, source: string): Promise<void> {
-  await redis.set(KEYS.userPro(wallet), JSON.stringify({ plan: 'pro', paymentRef, source }));
+  await Promise.all([
+    redis.set(KEYS.userPro(wallet), JSON.stringify({ plan: 'pro', paymentRef, source })),
+    redis.sadd(KEYS.proWallets(), wallet),
+  ]);
 }
 
 export async function grantSignals(wallet: string): Promise<void> {
-  await redis.set(KEYS.userPro(wallet), JSON.stringify({ plan: 'signals', grantedAt: Date.now() }));
+  await Promise.all([
+    redis.set(KEYS.userPro(wallet), JSON.stringify({ plan: 'signals', grantedAt: Date.now() })),
+    redis.sadd(KEYS.proWallets(), wallet),
+  ]);
 }
 
 export async function revokePro(wallet: string): Promise<void> {
-  await redis.del(KEYS.userPro(wallet));
+  await Promise.all([
+    redis.del(KEYS.userPro(wallet)),
+    redis.srem(KEYS.proWallets(), wallet),
+  ]);
 }
 
 export async function grantProDev(wallet: string): Promise<void> {
