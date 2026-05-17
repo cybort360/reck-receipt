@@ -43,12 +43,12 @@ export async function generateWrapped(
   ];
 
   const solPricesByDate = new Map<string, number>();
+  const uniqueDateEntries = [
+    ...new Map(txs.map((tx) => [dateKey(tx.timestamp), tx.timestamp])).entries(),
+  ];
   await Promise.all(
-    txs.map(async (tx) => {
-      const key = dateKey(tx.timestamp);
-      if (!solPricesByDate.has(key)) {
-        solPricesByDate.set(key, await getSolPriceAtTimestamp(tx.timestamp * 1000));
-      }
+    uniqueDateEntries.map(async ([key, ts]) => {
+      solPricesByDate.set(key, await getSolPriceAtTimestamp(ts * 1000));
     }),
   );
 
@@ -93,7 +93,7 @@ export async function generateWrapped(
     }
   }
 
-  // Community percentile: what % of audited wallets have higher leakage
+  // communityPercentile = fraction of audited wallets with lower leakage (0=least rekt, 100=most rekt)
   let communityPercentile: number | null = null;
   const totalWallets = await redis.zcard(KEYS.lbGlobal());
   if (totalWallets >= 3) {

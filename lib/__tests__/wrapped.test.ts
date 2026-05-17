@@ -84,7 +84,8 @@ describe('generateWrapped', () => {
     expect(result.personality.type).toBe('Chaos Trader');
     expect(result.worstTrade).not.toBeNull();
     expect(result.worstTrade?.symbol).toBe('BONK');
-    expect(typeof result.communityPercentile).toBe('number');
+    // zrank=3, zcard=10 → Math.round(3/10*100) = 30
+    expect(result.communityPercentile).toBe(30);
     expect(result.generatedAt).toBeGreaterThan(0);
   });
 
