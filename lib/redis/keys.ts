@@ -33,4 +33,7 @@ export const KEYS = {
   telegramChatId: (wallet: string) => `rr:v1:user:telegram:${wallet}`,
   subscriptionIndex: () => `rr:v1:idx:subscriptions`,
   alertSent: (wallet: string, mint: string) => `rr:v1:alert:sent:${wallet}:${mint}`,
+  proWallets: () => `rr:v1:idx:pro-wallets`,
+  wrapped: (wallet: string, yyyyMm: string) => `rr:v1:wrapped:${wallet}:${yyyyMm}`,
+  wrappedLatest: (wallet: string) => `rr:v1:wrapped:latest:${wallet}`,
 };
