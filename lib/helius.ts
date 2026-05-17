@@ -128,6 +128,43 @@ function extractLegs(
   return [];
 }
 
+function mapHeliusTx(tx: HeliusEnhancedTransaction, walletAddress: string): SwapTransaction {
+  const nativeTransfers = tx.nativeTransfers ?? [];
+  const tokenTransfers = tx.tokenTransfers ?? [];
+
+  const jitoTipLamports = nativeTransfers
+    .filter((t) => JITO_TIP_ACCOUNTS.has(t.toUserAccount))
+    .reduce((sum, t) => sum + t.amount, 0);
+  const hasJitoTip = jitoTipLamports > 0;
+
+  const outgoing = tokenTransfers
+    .filter((t) => t.fromUserAccount === walletAddress)
+    .reduce((max, t) => Math.max(max, t.tokenAmount), 0);
+  const incoming = tokenTransfers
+    .filter((t) => t.toUserAccount === walletAddress)
+    .reduce((max, t) => Math.max(max, t.tokenAmount), 0);
+  const slippagePct =
+    outgoing > 0 && incoming > 0
+      ? Math.max(0, ((outgoing - incoming) / outgoing) * 100)
+      : 0;
+
+  const likelySandwiched = hasJitoTip && jitoTipLamports > 100000;
+  const accountData = tx.accountData ?? [];
+
+  return {
+    signature: tx.signature,
+    timestamp: tx.timestamp,
+    fee: tx.fee,
+    hasJitoTip,
+    jitoTipLamports,
+    slippagePct,
+    likelySandwiched,
+    tokenTransfers,
+    accountData,
+    legs: extractLegs(walletAddress, tx.tokenTransfers ?? [], accountData, tx.fee, tx.timestamp),
+  };
+}
+
 export async function fetchSwapTransactions(walletAddress: string, max = 500): Promise<SwapTransaction[]> {
   const apiKey = process.env.HELIUS_API_KEY;
   if (!apiKey) throw new Error('HELIUS_API_KEY is not set');
@@ -150,42 +187,42 @@ export async function fetchSwapTransactions(walletAddress: string, max = 500): P
     before = page[page.length - 1].signature;
   }
 
-  const txs = allTxs.slice(0, MAX);
+  return allTxs.slice(0, MAX).map((tx) => mapHeliusTx(tx, walletAddress));
+}
 
-  return txs.map((tx) => {
-    const nativeTransfers = tx.nativeTransfers ?? [];
-    const tokenTransfers = tx.tokenTransfers ?? [];
+export async function fetchSwapTransactionsByMonth(
+  walletAddress: string,
+  year: number,
+  month: number,
+): Promise<SwapTransaction[]> {
+  const apiKey = process.env.HELIUS_API_KEY;
+  if (!apiKey) throw new Error('HELIUS_API_KEY is not set');
 
-    const jitoTipLamports = nativeTransfers
-      .filter((t) => JITO_TIP_ACCOUNTS.has(t.toUserAccount))
-      .reduce((sum, t) => sum + t.amount, 0);
-    const hasJitoTip = jitoTipLamports > 0;
+  const monthStart = Math.floor(Date.UTC(year, month - 1, 1) / 1000);
+  const monthEnd = Math.floor(Date.UTC(year, month, 1) / 1000);
 
-    const outgoing = tokenTransfers
-      .filter((t) => t.fromUserAccount === walletAddress)
-      .reduce((max, t) => Math.max(max, t.tokenAmount), 0);
-    const incoming = tokenTransfers
-      .filter((t) => t.toUserAccount === walletAddress)
-      .reduce((max, t) => Math.max(max, t.tokenAmount), 0);
-    const slippagePct =
-      outgoing > 0 && incoming > 0
-        ? Math.max(0, ((outgoing - incoming) / outgoing) * 100)
-        : 0;
+  const collected: HeliusEnhancedTransaction[] = [];
+  let before: string | null = null;
 
-    const likelySandwiched = hasJitoTip && jitoTipLamports > 100000;
+  while (true) {
+    const base = `https://api.helius.xyz/v0/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100&type=SWAP`;
+    const url = before ? `${base}&before=${before}` : base;
 
-    const accountData = tx.accountData ?? [];
-    return {
-      signature: tx.signature,
-      timestamp: tx.timestamp,
-      fee: tx.fee,
-      hasJitoTip,
-      jitoTipLamports,
-      slippagePct,
-      likelySandwiched,
-      tokenTransfers,
-      accountData,
-      legs: extractLegs(walletAddress, tx.tokenTransfers ?? [], accountData, tx.fee, tx.timestamp),
-    };
-  });
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Helius API error: ${res.status}`);
+    const page: HeliusEnhancedTransaction[] = await res.json();
+    if (page.length === 0) break;
+
+    for (const tx of page) {
+      if (tx.timestamp >= monthStart && tx.timestamp < monthEnd) {
+        collected.push(tx);
+      }
+    }
+
+    const oldestTs = page[page.length - 1].timestamp;
+    if (oldestTs < monthStart || page.length < 100) break;
+    before = page[page.length - 1].signature;
+  }
+
+  return collected.map((tx) => mapHeliusTx(tx, walletAddress));
 }
